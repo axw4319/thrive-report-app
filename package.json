@@ -1,0 +1,13 @@
+{
+  "name": "thrive-report-app",
+  "version": "1.0.0",
+  "description": "AI Visibility Report Generator - Thrive Agency Edition",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0"
+  }
+}

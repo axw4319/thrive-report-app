@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Visibility Report Generator - Thrive v1.2.0</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070d;--s1:#111119;--s2:#18182a;--bd:#282840;--tx:#e0e0f0;--dim:#7878a0;--ac:#FF6600;--ac2:#7D963D;--grn:#00d4aa;--red:#ff5e6e;--orn:#ffc552}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+.hdr{padding:16px 32px;border-bottom:1px solid var(--bd);background:var(--s1);display:flex;align-items:center;gap:14px}
+.hdr .logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--ac2)}.hdr .sep{width:1px;height:22px;background:var(--bd)}.hdr .sub{font-size:13px;color:var(--dim)}
+.cfg{max-width:860px;margin:32px auto;padding:0 20px}.card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:28px 32px}.card h2{font-size:17px;font-weight:600;margin-bottom:20px}
+.fg{display:flex;flex-direction:column;gap:5px;position:relative;margin-bottom:16px}
+.fg label{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.fg input{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.fg input:focus{border-color:var(--ac)}.fg input::placeholder{color:var(--dim);opacity:.7}
+.dd{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--bd);border-radius:0 0 7px 7px;max-height:240px;overflow-y:auto;z-index:50;display:none}.dd.open{display:block}
+.dd-item{padding:8px 14px;cursor:pointer;font-size:13px}.dd-item:hover{background:var(--ac);color:#fff}
+.btn{margin-top:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--ac),#FF8C33);border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 24px #FF660055}.btn:disabled{opacity:.45;cursor:not-allowed}
+.log{margin-top:14px;padding:12px;background:var(--bg);border-radius:7px;font-size:11px;font-family:'Space Mono',monospace;color:var(--dim);max-height:260px;overflow-y:auto;display:none;line-height:1.6}
+.log.on{display:block}.log .ok{color:var(--grn)}.log .er{color:var(--red)}.log .wr{color:var(--orn)}
+#rpt{display:none;max-width:860px;margin:32px auto;padding:0 20px 100px}#rpt.on{display:block}
+.page{background:#fff;color:#1a1a2e;overflow:hidden;margin-bottom:20px;box-shadow:0 4px 30px #0004;width:100%;border-radius:0}
+.rh{background:linear-gradient(135deg,#1a2e1a,#2d5e2d);padding:20px 36px;color:#fff;position:relative}
+.rh .tl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#fff9;margin-bottom:4px}.rh h1{font-size:24px;font-weight:700;margin-bottom:6px}.rh .dr{font-size:12px;color:#fff7}
+.rh .rlogo{position:absolute;top:50%;right:36px;transform:translateY(-50%);height:40px;opacity:.95}
+.mr{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:2px solid #eee}.mc{padding:12px 10px;text-align:center;border-right:1px solid #eee}.mc:last-child{border:none}
+.mc .v{font-size:22px;font-weight:700;color:#7D963D}.mc .l{font-size:9px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+.rs{padding:14px 36px}.rs h3{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:2px}.rs .ss{font-size:10px;color:#999;margin-bottom:10px}
+.co{background:#f0f5e6;border-left:4px solid #7D963D;padding:8px 14px;font-size:11px;color:#555;border-radius:0 7px 7px 0;margin-bottom:10px}.co b{color:#7D963D}
+.bt{width:100%;border-collapse:collapse;font-size:12px}.bt th{text-align:left;padding:9px 10px;font-size:9px;font-weight:700;color:#999;text-transform:uppercase;border-bottom:2px solid #eee}
+.bt td{padding:9px 10px;border-bottom:1px solid #f2f2f2}.bt tr:last-child td{border:none}.bt .rk{font-weight:700;color:#7D963D;width:28px}.bt .bn{font-weight:600;color:#1a1a2e}.bt .nm{font-family:'Space Mono',monospace;font-size:11px}
+.hl{background:#f0f5e6 !important}
+.vis-bar{width:50px;height:6px;background:#e8e8ee;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;overflow:hidden;position:relative}
+.vis-bar .fill{height:100%;border-radius:3px;background:#7D963D;position:absolute;left:0;top:0}
+.sent-bar{width:50px;height:6px;background:#e8e8ee;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;overflow:hidden;position:relative}
+.sent-bar .fill{height:100%;border-radius:3px;background:#5a7a2d;position:absolute;left:0;top:0}
+.bc{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:20px}.bg{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.bpct{font-size:8px;font-weight:600;color:#555}.bbar{width:28px;border-radius:4px 4px 0 0}
+.bl{font-size:9px;color:#666;text-align:center;max-width:65px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}.bl.target{font-weight:700;color:#1a1a2e}
+.mb{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}.mi{flex:1;min-width:100px;background:#f8f8fc;padding:7px;border-radius:7px;text-align:center;overflow:hidden}
+.mi .mn{font-size:8px;font-weight:600;color:#999;text-transform:uppercase;margin-bottom:4px}.mm{height:50px;display:flex;align-items:flex-end;justify-content:center;gap:3px;overflow:hidden}
+.mmb{width:11px;border-radius:2px 2px 0 0;max-height:50px}
+.model-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:9px;color:#666}.ml-item{display:flex;align-items:center;gap:4px}.ml-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.donut-wrap{display:flex;align-items:center;gap:24px;flex-wrap:wrap;justify-content:center}
+.donut-legend{font-size:10px;line-height:1.8}.donut-legend div{display:flex;align-items:center;gap:5px}
+.donut-legend span{display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.pt{width:100%;border-collapse:collapse;font-size:11px}.pt th{text-align:left;padding:7px 8px;font-size:8px;font-weight:700;color:#999;text-transform:uppercase;border-bottom:2px solid #eee}
+.pt td{padding:7px 8px;border-bottom:1px solid #f2f2f2}.pq{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.leaders-cell{font-size:10px;line-height:1.4;max-width:180px}
+ul.tk{list-style:none;padding:0}ul.tk li{padding:7px 0 7px 18px;position:relative;font-size:12px;color:#555;line-height:1.5;border-bottom:1px solid #f2f2f2}
+ul.tk li:last-child{border:none}ul.tk li::before{content:'—';position:absolute;left:0;color:#7D963D;font-weight:700}
+.meth{padding:14px 36px 20px;font-size:10px;color:#bbb;border-top:1px solid #eee}
+.dlb{position:sticky;bottom:0;background:var(--s1);border-top:1px solid var(--bd);padding:14px 32px;display:flex;justify-content:center;gap:14px;z-index:100}
+.db{padding:10px 28px;border-radius:7px;border:1px solid var(--bd);background:var(--s2);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer}
+.db:hover{background:var(--ac);border-color:var(--ac)}.db.pr{background:linear-gradient(135deg,var(--ac),#FF8C33);border-color:transparent;color:#fff}
+.sp{display:inline-block;width:14px;height:14px;border:2px solid #fff4;border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="hdr"><img src="data:image/png;base64,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" alt="Thrive" style="height:24px"><div class="sep"></div><div class="sub">AI Visibility Report Generator - Thrive v1.2.0</div></div>
+<div class="cfg" id="cfgPanel">
+  <div class="card">
+    <h2>⚡ Generate Report</h2>
+    <div class="fg"><label>Project (type to search)</label><input id="projectName" autocomplete="off" placeholder="Start typing to search..."><input type="hidden" id="projectId" value=""><div class="dd" id="projectDD"></div></div>
+    <div class="fg"><label>Brand Name (type to search or enter any name)</label><input id="brandName" autocomplete="off" placeholder="Start typing to search..."><div class="dd" id="brandDD"></div></div>
+    <button class="btn" id="goBtn" onclick="go()">Generate Report</button>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+<div id="rpt"><div id="rc"></div>
+  <div class="dlb"><button class="db" onclick="newReport()">⚙ New Report</button><button class="db pr" id="dlBtn" onclick="dlPDF()">⬇ Download PDF</button></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const API_KEY='skc-Y29fZjA5MmVkODQtNTQzYi00NTZjLWFjZjctNTVlYjhiMDhlM2E4-Ho6QiNRBL0upAuav28lwbg';
+const LOGO='data:image/png;base64,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';
+const CL=['#7D963D','#00cec9','#fd79a8','#fdcb6e','#74b9ff','#e17055','#a29bfe','#55efc4','#fab1a0','#81ecec','#636e72','#2d3436','#0984e3','#d63031','#00b894','#e84393','#6ab04c','#eb4d4b','#7ed6df','#f9ca24'];
+let brandColorMap={};
+function getBrandColor(n){if(!brandColorMap[n])brandColorMap[n]=CL[Object.keys(brandColorMap).length%CL.length];return brandColorMap[n]}
+function L(m,t=''){const el=document.getElementById('log');el.classList.add('on');el.innerHTML+=`<div class="${t==='e'?'er':t==='w'?'wr':'ok'}">› ${m}</div>`;el.scrollTop=9e9}
+function Lc(){document.getElementById('log').innerHTML='';document.getElementById('log').classList.remove('on')}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function pf(v){return ((parseFloat(v)||0)*100).toFixed(1)+'%'}
+function fmt(d){return d.toISOString().split('T')[0]}
+function getDates(days){const e=new Date();const s=new Date(e);s.setDate(s.getDate()-days);return{start_date:fmt(s),end_date:fmt(e)}}
+function getMonthYear(){return new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'}).toUpperCase()}
+function newReport(){brandInput.value='';brandInput.dataset.selectedId='';document.getElementById('cfgPanel').scrollIntoView({behavior:'smooth'})}
+
+async function apiRaw(m,p,q={},b=null){const r=await fetch('/proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method:m,apiPath:p,query:q,body:b,apiKey:API_KEY})});let d;try{d=await r.json()}catch{throw new Error(`Non-JSON response from ${p}`)}if(r.status>=400||d.error)throw new Error(d.error||d.message||`HTTP ${r.status}`);return d}
+async function api(m,p,q={},b=null){const pid=document.getElementById('projectId').value;if(pid)q.project_id=pid;return apiRaw(m,p,q,b)}
+
+let allProjects=[];
+const projInput=document.getElementById('projectName'),projDD=document.getElementById('projectDD'),projHidden=document.getElementById('projectId');
+projInput.addEventListener('focus',async()=>{if(!allProjects.length){try{allProjects=((await apiRaw('GET','projects')).data||[]).sort((a,b)=>a.name.localeCompare(b.name))}catch(e){}}showProjDD(projInput.value)});
+projInput.addEventListener('input',()=>showProjDD(projInput.value));
+function showProjDD(q){const m=allProjects.filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase()));if(!m.length){projDD.classList.remove('open');return}projDD.innerHTML=m.map(p=>`<div class="dd-item" data-id="${p.id}" data-name="${esc(p.name)}">${esc(p.name)}</div>`).join('');projDD.classList.add('open')}
+projDD.addEventListener('click',e=>{const i=e.target.closest('.dd-item');if(!i)return;projInput.value=i.dataset.name;projHidden.value=i.dataset.id;projDD.classList.remove('open');brandInput.value='';brandInput.dataset.selectedId='';allBrands=[]});
+
+let allBrands=[];
+const brandInput=document.getElementById('brandName'),brandDD=document.getElementById('brandDD');
+brandInput.addEventListener('focus',async()=>{if(!allBrands.length&&projHidden.value){try{allBrands=((await api('GET','brands')).data||[]).sort((a,b)=>a.name.localeCompare(b.name))}catch(e){}}showBrandDD(brandInput.value)});
+brandInput.addEventListener('input',()=>showBrandDD(brandInput.value));
+brandInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();brandDD.classList.remove('open');go()}});
+function showBrandDD(q){const m=allBrands.filter(b=>!q||b.name.toLowerCase().includes(q.toLowerCase()));if(!m.length){brandDD.classList.remove('open');return}brandDD.innerHTML=m.map(b=>`<div class="dd-item" data-id="${b.id}" data-name="${esc(b.name)}">${esc(b.name)}</div>`).join('');brandDD.classList.add('open')}
+brandDD.addEventListener('click',e=>{const i=e.target.closest('.dd-item');if(!i)return;brandInput.value=i.dataset.name;brandInput.dataset.selectedId=i.dataset.id;brandDD.classList.remove('open')});
+document.addEventListener('click',e=>{if(!projInput.contains(e.target)&&!projDD.contains(e.target))projDD.classList.remove('open');if(!brandInput.contains(e.target)&&!brandDD.contains(e.target))brandDD.classList.remove('open')});
+
+// Donut SVG with leader lines and anti-overlap labels
+function donutSVG(items,size){
+  size=size||220;const cx=size/2,cy=size/2,r=size*0.34,r2=size*0.20;
+  let cum=0;const total=items.reduce((s,i)=>s+i.val,0);
+  let slices='';
+  // Collect label positions first
+  const labels=[];
+  let cum2=0;
+  items.forEach(item=>{
+    const pct=item.val/total;const a1=cum2*2*Math.PI-Math.PI/2;cum2+=pct;const a2=cum2*2*Math.PI-Math.PI/2;
+    const mid=(a1+a2)/2;
+    const anchorX=cx+r*Math.cos(mid);const anchorY=cy+r*Math.sin(mid);
+    const isRight=anchorX>=cx;
+    const labelR=r+22;
+    let lx=cx+labelR*Math.cos(mid);let ly=cy+labelR*Math.sin(mid);
+    labels.push({name:item.name,pctVal:Math.round(item.val*100),isTarget:item.isTarget,anchorX,anchorY,lx,ly,isRight,color:item.color});
+  });
+  // Anti-overlap: sort labels by y, push apart if too close (min 12px gap)
+  const leftLabels=labels.filter(l=>!l.isRight).sort((a,b)=>a.ly-b.ly);
+  const rightLabels=labels.filter(l=>l.isRight).sort((a,b)=>a.ly-b.ly);
+  function spread(arr){for(let i=1;i<arr.length;i++){if(arr[i].ly-arr[i-1].ly<12){arr[i].ly=arr[i-1].ly+12}}}
+  spread(leftLabels);spread(rightLabels);
+
+  // Draw slices
+  cum=0;
+  items.forEach(item=>{
+    const pct=item.val/total;const a1=cum*2*Math.PI-Math.PI/2;cum+=pct;const a2=cum*2*Math.PI-Math.PI/2;const large=pct>0.5?1:0;
+    const x1=cx+r*Math.cos(a1),y1=cy+r*Math.sin(a1),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2);
+    const ix1=cx+r2*Math.cos(a2),iy1=cy+r2*Math.sin(a2),ix2=cx+r2*Math.cos(a1),iy2=cy+r2*Math.sin(a1);
+    slices+=`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${ix1},${iy1} A${r2},${r2} 0 ${large} 0 ${ix2},${iy2} Z" fill="${item.color}"/>`;
+  });
+
+  // Draw leader lines and labels
+  let labelsSvg='';
+  labels.forEach(l=>{
+    const endX=l.isRight?l.lx-4:l.lx+4;
+    labelsSvg+=`<line x1="${l.anchorX}" y1="${l.anchorY}" x2="${endX}" y2="${l.ly}" stroke="#bbb" stroke-width="0.7"/>`;
+    const anchor=l.isRight?'start':'end';
+    const fw=l.isTarget?'bold':'normal';
+    labelsSvg+=`<text x="${l.lx}" y="${l.ly}" font-size="8" font-weight="${fw}" fill="#444" text-anchor="${anchor}" dominant-baseline="middle">${esc(l.name)} ${l.pctVal}%</text>`;
+  });
+
+  const vw=size+120,vh=size+20;
+  return `<svg viewBox="${-60} ${-10} ${vw} ${vh}" width="${vw}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${slices}${labelsSvg}</svg>`;
+}
+
+async function go(){
+  const btn=document.getElementById('goBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span> Working...';Lc();brandColorMap={};
+  try{
+    if(!projHidden.value)throw new Error('Please select a project first.');
+    const bName=brandInput.value.trim();if(!bName)throw new Error('Please enter a brand name.');
+    L('Fetching brands...');const brands=(await api('GET','brands')).data||[];allBrands=brands.sort((a,b)=>a.name.localeCompare(b.name));L(`✓ ${brands.length}`);
+    const sid=brandInput.dataset.selectedId||'';let target=sid?brands.find(b=>b.id===sid):null;
+    if(!target&&bName)target=brands.find(b=>b.name.toLowerCase().includes(bName.toLowerCase()));
+    if(!target){target={id:'__custom__',name:bName};L(`"${bName}" not in project — showing at 0%`,'w')}else L(`Target: ${target.name}`);
+    L('Fetching prompts...');let prompts=[];try{prompts=(await api('GET','prompts')).data||[];L(`✓ ${prompts.length}`)}catch(e){L('Prompts: '+e.message+' — continuing','w')}
+    L('Fetching models...');let models=[];try{models=((await api('GET','models')).data||[]).filter(m=>m.is_active);L(`✓ ${models.length}`)}catch(e){L('Models: '+e.message+' — continuing','w')}
+    L('Fetching brand report (last 7 days)...');let dateBody=getDates(7);let reportData=(await api('POST','reports/brands',{},dateBody)).data||[];L(`✓ ${reportData.length}`);
+    if(!reportData.length){L('No data in last 7 days — fetching all time...','w');dateBody={};reportData=(await api('POST','reports/brands',{},dateBody)).data||[];L(`✓ ${reportData.length} (all time)`)}
+    [...reportData].sort((a,b)=>(b.visibility||0)-(a.visibility||0)).forEach(r=>{if(r.brand?.name)getBrandColor(r.brand.name)});
+    getBrandColor(target.name);
+    L('Fetching model breakdown...');let modelData=[];try{modelData=(await api('POST','reports/brands',{},{...dateBody,dimensions:['model_id']})).data||[];L(`✓ ${modelData.length}`)}catch(e){L(e.message,'w')}
+    L('Fetching prompt breakdown...');let promptData=[];try{promptData=(await api('POST','reports/brands',{},{...dateBody,dimensions:['prompt_id']})).data||[];L(`✓ ${promptData.length}`)}catch(e){L(e.message,'w')}
+    L('Rendering...');render({target,brands,prompts,models,reportData,modelData,promptData,dates:dateBody});L('✓ Done!');
+  }catch(e){L(`FATAL: ${e.message}`,'e')}finally{btn.disabled=false;btn.innerHTML='Generate Report'}
+}
+
+function render(D){
+  const{target,brands,prompts,models,reportData,modelData,promptData,dates}=D;
+  let rows=reportData.map(r=>({id:r.brand?.id||'',name:r.brand?.name||'?',vis:r.visibility||0,sov:r.share_of_voice||0,mentions:r.mention_count||0,pos:r.position||0,sent:r.sentiment||0,visTotal:r.visibility_total||0}));
+  rows.sort((a,b)=>b.vis-a.vis);
+  const zeroRow={id:target.id,name:target.name,vis:0,sov:0,mentions:0,pos:0,sent:0,visTotal:rows[0]?.visTotal||0};
+  if(!rows.find(r=>r.id===target.id))rows.push(zeroRow);
+  const leader=rows[0];const me=rows.find(r=>r.id===target.id)||zeroRow;
+  const gap=((leader.vis-me.vis)*100).toFixed(1);const totalConvo=rows[0]?.visTotal||0;const maxVis=rows[0]?.vis||1;
+  const tN=target.name;
+
+  let top10=rows.slice(0,10);if(!top10.find(r=>r.id===target.id))top10.push(me);
+  // Bar heights relative to max so tallest bar = 160px
+  const barMax=Math.max(...top10.map(r=>r.vis),0.01);
+
+  const sovF=rows.filter(r=>r.sov>0);let sovTop=sovF.slice(0,6);if(!sovTop.find(r=>r.id===target.id))sovTop.push({...me,sov:Math.max(me.sov,0.001)});
+
+  let pRows=[];
+  if(promptData.length>0){
+    const pm={};prompts.forEach(p=>pm[p.id]=p);const byP={};
+    promptData.forEach(pd=>{const pid=pd.prompt?.id||pd.prompt_id;if(!pid)return;if(!byP[pid])byP[pid]=[];byP[pid].push(pd)});
+    Object.entries(byP).forEach(([pid,items])=>{const p=pm[pid];const qText=p?.messages?.[0]?.content||p?.text||pid;
+      items.sort((a,b)=>(b.visibility||0)-(a.visibility||0));const top3=items.slice(0,3).map(i=>i.brand?.name||'?');
+      const mine=items.find(i=>(i.brand?.id)===target.id);
+      pRows.push({q:qText,vol:items[0]?.visibility_total||0,leaders:top3,myVis:mine?.visibility||0});
+    });pRows.sort((a,b)=>b.vol-a.vol);
+  }
+
+  let mBreak=[];let legendBrands=new Set();
+  if(modelData.length>0){const byM={};modelData.forEach(md=>{const mid=md.model?.id||md.model_id;if(!mid)return;if(!byM[mid])byM[mid]=[];byM[mid].push({id:md.brand?.id||'',name:md.brand?.name||'?',vis:md.visibility||0})});
+    Object.entries(byM).forEach(([mid,items])=>{items.sort((a,b)=>b.vis-a.vis);let t5=items.slice(0,5);
+      if(!t5.find(r=>r.id===target.id))t5.push({id:target.id,name:target.name,vis:0});
+      t5.forEach(i=>legendBrands.add(i.name));mBreak.push({model:mid,items:t5})});
+  }legendBrands.add(target.name);
+
+  document.getElementById('rc').innerHTML=`
+  <div class="page" id="pg1">
+    <div class="rh"><div class="tl">AI Search Visibility Analysis</div><h1>${esc(tN).toUpperCase()}</h1><div class="dr">${getMonthYear()}</div><img class="rlogo" src="${LOGO}" alt=""></div>
+    <div class="mr">
+      <div class="mc"><div class="v">${pf(me.vis)}</div><div class="l">AI Visibility</div></div>
+      <div class="mc"><div class="v">${me.sent||'-'}</div><div class="l">Reputation</div></div>
+      <div class="mc"><div class="v">${pf(me.sov)}</div><div class="l">Market Share</div></div>
+      <div class="mc"><div class="v">${rows.length}</div><div class="l">Brands Tracked</div></div>
+      <div class="mc"><div class="v">${totalConvo.toLocaleString()}</div><div class="l">Conversations</div></div>
+    </div>
+    <div class="rs" style="padding-bottom:0"><div class="co">${leader.id!==me.id?`★ <b>${esc(leader.name)}</b> leads at ${pf(leader.vis)}, ${gap}% ahead of ${esc(me.name)}.`:`★ <b>${esc(me.name)}</b> leads the competitive landscape at ${pf(me.vis)} visibility.`}</div></div>
+    <div class="rs"><h3>AI Visibility Comparison</h3><div class="ss">The percentage your brand is mentioned in all tracked AI answers</div>
+      <div class="bc">${top10.map(r=>`<div class="bg"><div class="bpct">${pf(r.vis)}</div><div class="bbar" style="height:${Math.max(2,(r.vis/barMax)*120)}px;background:${getBrandColor(r.name)}"></div><div class="bl${r.id===target.id?' target':''}">${esc(r.name).split(' ').slice(0,2).join(' ')}</div></div>`).join('')}</div>
+    </div>
+    ${sovTop.length?`<div class="rs"><h3>Market Share</h3><div class="ss">The percentage your brand is mentioned in AI answers compared to your competitors</div>
+      <div class="donut-wrap">${donutSVG(sovTop.map(r=>({name:r.name,val:Math.max(r.sov,0.001),color:getBrandColor(r.name),isTarget:r.id===target.id})),170)}
+      <div class="donut-legend">${sovTop.map(r=>`<div${r.id===target.id?' style="font-weight:700"':''}><span style="background:${getBrandColor(r.name)}"></span>${esc(r.name)} ${Math.round(r.sov*100)}%</div>`).join('')}</div></div></div>`:''}
+    ${mBreak.length?`<div class="rs"><h3>Visibility by AI Model</h3><div class="ss">Top brands across AI models</div>
+      <div class="mb">${mBreak.slice(0,5).map(m=>`<div class="mi"><div class="mn">${esc(m.model.replace(/-scraper/g,'').replace(/-/g,' '))}</div>
+        <div class="mm">${m.items.map(it=>`<div class="mmb" style="height:${Math.max(it.id===target.id?2:6,Math.min(50,it.vis*100*1.4))}px;background:${getBrandColor(it.name)}"></div>`).join('')}</div></div>`).join('')}</div>
+      <div class="model-legend">${[...legendBrands].map(n=>`<div class="ml-item"><div class="ml-dot" style="background:${getBrandColor(n)}"></div><span${n===tN?' style="font-weight:700"':''}>${esc(n)}</span></div>`).join('')}</div></div>`:''}
+    <div class="rs"><h3>Top Competitors</h3><div class="ss">Competitors ranked by AI Visibility</div>
+      <table class="bt"><thead><tr><th>#</th><th>Brand</th><th>Visibility</th><th>Market Share</th><th>Mentions</th><th>Avg. Position</th><th>Reputation</th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr class="${r.id===target.id?'hl':''}">
+        <td class="rk">${i+1}</td><td class="bn">${r.id===target.id?'<b>'+esc(r.name)+'</b>':esc(r.name)}</td>
+        <td><span class="vis-bar"><span class="fill" style="width:${maxVis>0?Math.min(100,(r.vis/maxVis)*100):0}%"></span></span><span class="nm">${pf(r.vis)}</span></td>
+        <td class="nm">${pf(r.sov)}</td><td class="nm">${r.mentions.toLocaleString()}</td>
+        <td class="nm">${r.pos?r.pos.toFixed(1):'-'}</td>
+        <td><span class="sent-bar"><span class="fill" style="width:${Math.min(100,r.sent)}%"></span></span><span class="nm">${r.sent||'-'}</span></td>
+      </tr>`).join('')}</tbody></table>
+    </div>
+    ${pRows.length?`<div class="rs"><h3>Top Search Prompts</h3><div class="ss">Top 25 prompts by search volume</div>
+      <table class="pt"><thead><tr><th>#</th><th>Query</th><th>Visibility</th><th>Leaders</th></tr></thead><tbody>
+      ${pRows.slice(0,25).map((p,i)=>{const hasT=p.leaders.some(l=>l.toLowerCase()===tN.toLowerCase());
+        return `<tr${hasT?' style="background:#f0f5e6"':''}><td class="rk">${i+1}</td>
+        <td class="pq" title="${esc(p.q)}">"${esc(p.q.substring(0,65))}${p.q.length>65?'…':''}"</td>
+        <td class="nm"${hasT?' style="font-weight:700;color:#7D963D"':''}>${pf(p.myVis)}</td>
+        <td class="leaders-cell">${p.leaders.map(l=>l.toLowerCase()===tN.toLowerCase()?'<b style="color:#7D963D">'+esc(l)+'</b>':esc(l)).join(', ')}</td></tr>`}).join('')}</tbody></table></div>`:''}
+    <div class="rs"><h3>Key Takeaways</h3>
+      <ul class="tk">
+        <li><b>${esc(leader.name)}</b> leads overall visibility at ${pf(leader.vis)}${leader.id!==me.id?`, ${gap}% ahead of ${esc(me.name)} at ${pf(me.vis)}`:''}.  </li>
+        <li><b>${esc(me.name)}</b> ${me.mentions>0?`commands ${pf(me.sov)} market share with ${me.mentions.toLocaleString()} mentions`:'is tracked for competitive intelligence'}${me.id===leader.id?', leading the field':''}.</li>
+        <li>${rows.length} brands tracked across ${models.length} AI platforms and ${prompts.length} prompts over ${totalConvo.toLocaleString()} total conversations.</li>
+        ${rows.length>1?`<li>A ${((rows[0].vis-rows[rows.length-1].vis)*100).toFixed(1)}% visibility gap separates the top brand from ${esc(rows[rows.length-1].name)} at ${pf(rows[rows.length-1].vis)}.</li>`:''}
+        ${me.sent>0?`<li><b>${esc(me.name)}</b> has a reputation score of ${me.sent}/100, indicating ${me.sent>=60?'positive':'neutral'} brand perception across AI platforms.</li>`:''}
+        <li>Lower-visibility brands should target niche prompts where competition is thinner to build topical authority.</li>
+      </ul>
+    </div>
+    <div class="meth">Methodology — Data across ${models.length} AI platforms, ${prompts.length} prompts, ${totalConvo.toLocaleString()} conversations. Visibility = appearances / total conversations. Market Share = brand mentions / total brand mentions. Reputation scored 0-100 (50=neutral). Report generated via Peec.ai API on ${new Date().toLocaleDateString()}.</div>
+  </div>`;
+  document.getElementById('rpt').classList.add('on');document.getElementById('rpt').scrollIntoView({behavior:'smooth'});
+}
+
+async function dlPDF(){
+  const page=document.querySelector('.page');if(!page)return alert('Generate a report first.');
+  const btn=document.getElementById('dlBtn');btn.innerHTML='<span class="sp"></span> Generating...';btn.disabled=true;
+  try{
+    if(!window.jspdf?.jsPDF)throw new Error('jsPDF not loaded.');
+    const{jsPDF}=window.jspdf;
+    const pw=210,ph=297;
+    // Render entire page as one tall continuous canvas
+    const cv=await html2canvas(page,{scale:2.5,useCORS:true,logging:false,backgroundColor:'#ffffff'});
+    const imgData=cv.toDataURL('image/jpeg',0.92);
+    // Calculate how tall the full image is in mm at full A4 width
+    const totalH=(cv.height*pw)/cv.width;
+    const pages=Math.ceil(totalH/ph);
+    const pdf=new jsPDF('p','mm','a4');
+    for(let i=0;i<pages;i++){
+      if(i>0)pdf.addPage();
+      // Offset the image upward to show the correct slice
+      pdf.addImage(imgData,'JPEG',0,-(i*ph),pw,totalH);
+    }
+    pdf.save(`AI Visibility Analysis - ${(brandInput.value||'Report').replace(/[^\w\s-]/g,'').trim()}.pdf`);
+  }catch(e){alert('PDF error: '+e.message)}finally{btn.innerHTML='⬇ Download PDF';btn.disabled=false}
+}
+</script>
+</body>
+</html>
