@@ -1,293 +1,306 @@
 require('dotenv').config();
 const express = require('express');
+const fetch = require('node-fetch');
 const path = require('path');
-const db = require('./database');
-const { scrapeWebsite, analyzeWebsite } = require('./lib/scraper');
-const { generatePrompts } = require('./lib/prompt-generator');
-const { queryAll, getModelNames, clients } = require('./lib/ai-clients');
-const { extractBrands, extractBrandsBatch } = require('./lib/brand-extractor');
-const { calculateMetrics } = require('./lib/metrics-calculator');
-const { assembleReport } = require('./lib/report-data');
-const { findFuzzyMatch } = require('./lib/prompt-matcher');
+const fs = require('fs');
+// CSV bulk processing runs locally via run-csv.js, not on the server
 
+const crypto = require('crypto');
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ── Authentication ──
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thrive2026';
+const AUTH_COOKIE = 'pc_auth';
+const AUTH_MAX_AGE = 365 * 24 * 60 * 60 * 1000; // 1 year
+
+function makeToken(password) {
+  return crypto.createHmac('sha256', 'thrive-salt').update(password).digest('hex');
+}
+
+function isAuthed(req) {
+  const cookie = (req.headers.cookie || '').split(';').find(c => c.trim().startsWith(AUTH_COOKIE + '='));
+  if (!cookie) return false;
+  return cookie.split('=')[1]?.trim() === makeToken(ADMIN_PASSWORD);
+}
+
+// Login page
+app.get('/login', (req, res) => {
+  const error = req.query.error ? '<div style="color:#ff5e6e;margin-bottom:16px;font-size:13px">Incorrect password</div>' : '';
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Login — Thrive</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:#07070d;color:#e0e0f0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#111119;border:1px solid #282840;border-radius:14px;padding:36px;width:340px;text-align:center}
+h1{font-size:18px;font-weight:700;margin-bottom:6px}p{font-size:12px;color:#7878a0;margin-bottom:24px}
+input{width:100%;background:#07070d;border:1px solid #282840;border-radius:7px;padding:12px 14px;color:#e0e0f0;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;margin-bottom:16px}
+input:focus{border-color:#FF6600}
+button{width:100%;padding:13px;background:linear-gradient(135deg,#FF6600,#FF8C33);border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+button:hover{transform:translateY(-1px);box-shadow:0 6px 24px #FF660055}</style></head>
+<body><div class="card"><h1>Thrive</h1><p>Enter password to access the dashboard</p>${error}
+<form method="POST" action="/login"><input type="password" name="password" placeholder="Password" autofocus>
+<button type="submit">Sign In</button></form></div></body></html>`);
+});
+
+app.post('/login', (req, res) => {
+  if (req.body.password === ADMIN_PASSWORD) {
+    res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${makeToken(ADMIN_PASSWORD)}; Path=/; Max-Age=${AUTH_MAX_AGE / 1000}; HttpOnly; SameSite=Lax`);
+    res.redirect(req.query.next || '/');
+  } else {
+    res.redirect('/login?error=1');
+  }
+});
+
+app.get('/logout', (req, res) => {
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; Max-Age=0`);
+  res.redirect('/login');
+});
+
+// Protect everything EXCEPT /reports/ PDFs and /login
+app.use((req, res, next) => {
+  // Allow PDF report URLs without auth
+  if (req.path.startsWith('/reports/')) return next();
+  // Allow login routes
+  if (req.path === '/login') return next();
+  // Allow proxy for frontend API calls (already behind auth pages)
+  if (req.path === '/proxy') return next();
+  // Allow CSV API endpoint
+  if (req.path === '/api/csv/process') return next();
+  // Everything else requires auth
+  if (!isAuthed(req)) return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Purge expired cache on startup
-db.purgeExpiredCache.run();
+// Serve generated PDF reports — on-demand generation
+const REPORTS_DIR = path.join(__dirname, 'reports');
+if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
-// --- Scan Pipeline (runs async) ---
-async function runScan(scanId) {
+const { PeecAPI, getDates } = require('./lib/peec-api');
+const { matchBrand } = require('./lib/fuzzy');
+const { generatePDF, closeBrowser } = require('./lib/pdf-generator');
+
+// URL format: /reports/AI_Visibility_Analysis_-_Company_Name.pdf
+app.get('/reports/:filename', async (req, res) => {
+  const filename = decodeURIComponent(req.params.filename);
+  if (!filename.endsWith('.pdf')) return res.status(400).send('Invalid file');
+  const filePath = path.join(REPORTS_DIR, filename);
+
+  // Serve cached PDF if it exists, otherwise generate on-demand
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+
+  // Extract company name from "AI_Visibility_Analysis_-_Company_Name.pdf"
+  const companySlug = filename.replace('.pdf', '').replace(/^AI_Visibility_Analysis_-_/, '');
+  const apiKey = process.env.PEEC_API_KEY;
+  if (!apiKey) return res.status(500).send('No API key configured');
+
+  const projectIds = [
+    'or_be4b66ba-1ddb-43dc-bafd-bcd28fb1b842', // M&A Banks 2
+  ];
+
   try {
-    const scan = db.getScan.get(scanId);
-    if (!scan) return;
+    const api = new PeecAPI(apiKey);
 
-    // Step 1: Scrape website
-    console.log(`[SCAN ${scanId}] Scraping ${scan.website_url}...`);
-    db.updateScanStatus.run('scraping', 'Scraping website...', scanId);
-    const scraped = await scrapeWebsite(scan.website_url);
+    // Find brand using fuzzy matching (same logic as CSV processor)
+    let targetBrand = null;
+    let targetPid = projectIds[0];
+    let projectBrands = [];
+    let reportData = [];
+    const companyName = companySlug.replace(/_/g, ' ');
 
-    // Step 2: Analyze website
-    console.log(`[SCAN ${scanId}] Analyzing website...`);
-    db.updateScanStatus.run('analyzing', 'Analyzing website content...', scanId);
-    const profile = await analyzeWebsite(scraped, scan.brand_name);
-    const industry = (profile.industry || '').toLowerCase().trim();
-    db.updateScan.run(
-      profile.industry || '', JSON.stringify(profile.services || []),
-      profile.location || '', profile.target_market || '',
-      profile.summary || '', 'generating_prompts', 'Generating search prompts...', scanId
-    );
-
-    // Step 3: Generate prompts (check industry cache first, incorporate clusters)
-    console.log(`[SCAN ${scanId}] Generating prompts...`);
-    const clusters = (scan.prompt_clusters || '').trim();
-    let prompts;
-    // Skip industry cache if custom clusters were provided (they make prompts unique)
-    const cachedPrompts = (industry && !clusters) ? db.getCachedPrompts.get(industry) : null;
-    if (cachedPrompts) {
-      prompts = JSON.parse(cachedPrompts.prompts_json);
-      console.log(`[SCAN ${scanId}] Using cached prompts for industry "${industry}" (${prompts.length} prompts)`);
-    } else {
-      prompts = await generatePrompts(profile, scan.brand_name, clusters);
-      if (industry && !clusters) {
-        db.upsertCachedPrompts.run(industry, JSON.stringify(prompts));
-      }
-    }
-    for (const p of prompts) {
-      db.insertPrompt.run(scanId, p.prompt, p.category);
-    }
-    console.log(`[SCAN ${scanId}] ${prompts.length} prompts ready`);
-
-    // Step 4: Query AI models (with response cache)
-    const savedPrompts = db.getPrompts.all(scanId);
-    const total = savedPrompts.length;
-    const modelNames = clients.map(c => c.name);
-
-    const MODEL_DISPLAY = {chatgpt:'ChatGPT',gemini:'Gemini',perplexity:'Perplexity',google_ai_overview:'Google AI Overview'};
-
-    for (let i = 0; i < savedPrompts.length; i++) {
-      const p = savedPrompts[i];
-
-      // Check cache for each model, try fuzzy match if no exact hit
-      const cachedResults = [];
-      const uncachedClients = [];
-
-      // Try fuzzy match once per prompt (shared across models)
-      const fuzzyPrompt = findFuzzyMatch(p.prompt_text, db.db);
-
-      for (const client of clients) {
-        let cached = db.getCachedResponse.get(p.prompt_text, client.name);
-        if (!cached && fuzzyPrompt) {
-          cached = db.getCachedResponse.get(fuzzyPrompt, client.name);
-          if (cached) console.log(`[SCAN ${scanId}]   Fuzzy match for ${client.name}: "${p.prompt_text.slice(0,40)}..." → "${fuzzyPrompt.slice(0,40)}..."`);
-        }
-        if (cached) {
-          cachedResults.push({
-            model_name: client.name,
-            response: cached.response,
-            brands: cached.brands_json ? JSON.parse(cached.brands_json) : null,
-            fromCache: true
-          });
-        } else {
-          uncachedClients.push(client);
+    for (const pid of projectIds) {
+      const brands = await api.getBrands(pid);
+      // First try exact slug match
+      for (const b of brands) {
+        const slug = b.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').toLowerCase();
+        if (slug === companySlug) {
+          targetBrand = b;
+          targetPid = pid;
+          break;
         }
       }
-
-      const promptSnip = p.prompt_text.slice(0, 50);
-
-      if (cachedResults.length > 0) {
-        console.log(`[SCAN ${scanId}]   Cache hit: ${cachedResults.map(r => r.model_name).join(', ')}`);
-      }
-
-      // Query uncached models in parallel, updating progress as each completes
-      let freshResults = [];
-      if (uncachedClients.length > 0) {
-        const completed = new Set();
-        const updateProgress = (modelName) => {
-          completed.add(modelName);
-          const remaining = uncachedClients.filter(c => !completed.has(c.name)).map(c => MODEL_DISPLAY[c.name] || c.name);
-          const msg = remaining.length > 0
-            ? `(${i+1}/${total}) Querying ${remaining.join(', ')} — "${promptSnip}..."`
-            : `(${i+1}/${total}) Extracting brands — "${promptSnip}..."`;
-          db.updateScanStatus.run('querying', msg, scanId);
-        };
-
-        // Set initial progress showing first model being queried
-        const allNames = uncachedClients.map(c => MODEL_DISPLAY[c.name] || c.name);
-        const initMsg = `(${i+1}/${total}) Querying ${allNames.join(', ')} — "${promptSnip}..."`;
-        console.log(`[SCAN ${scanId}] ${initMsg}`);
-        db.updateScanStatus.run('querying', initMsg, scanId);
-
-        freshResults = await Promise.allSettled(
-          uncachedClients.map(client =>
-            client.query(p.prompt_text).then(
-              response => { updateProgress(client.name); return { model_name: client.name, response, fromCache: false }; },
-              err => {
-                console.error(`  [${client.name}] Error: ${err.message}`);
-                updateProgress(client.name);
-                return { model_name: client.name, response: null, error: err.message, fromCache: false };
-              }
-            )
-          )
-        );
-        freshResults = freshResults.map(r => r.value);
-      } else {
-        const msg = `(${i+1}/${total}) Using cached data — "${promptSnip}..."`;
-        console.log(`[SCAN ${scanId}] ${msg}`);
-        db.updateScanStatus.run('querying', msg, scanId);
-      }
-
-      const allResults = [...cachedResults, ...freshResults];
-
-      // Process cached results (brands already extracted)
-      for (const r of allResults.filter(r => r.fromCache && r.brands && r.response)) {
-        const respId = db.insertResponse.run(p.id, r.model_name, r.response).lastInsertRowid;
-        for (const b of r.brands) {
-          db.insertMention.run(respId, b.brand_name, b.normalized_name, b.position, b.context_snippet, b.sentiment_score);
+      // If no exact match, try fuzzy matching
+      if (!targetBrand) {
+        const fuzzyMatch = matchBrand(companyName, brands);
+        if (fuzzyMatch) {
+          targetBrand = fuzzyMatch.brand;
+          targetPid = pid;
         }
       }
-
-      // Batch extract brands from uncached responses (single API call)
-      const uncachedWithResponses = allResults.filter(r => !r.fromCache && r.response);
-      if (uncachedWithResponses.length > 0) {
-        const brandsByModel = await extractBrandsBatch(uncachedWithResponses, p.prompt_text);
-        for (const r of uncachedWithResponses) {
-          const respId = db.insertResponse.run(p.id, r.model_name, r.response).lastInsertRowid;
-          const brands = brandsByModel[r.model_name] || [];
-          // Cache the response + extracted brands
-          db.upsertCachedResponse.run(p.prompt_text, r.model_name, r.response, JSON.stringify(brands));
-          for (const b of brands) {
-            db.insertMention.run(respId, b.brand_name, b.normalized_name, b.position, b.context_snippet, b.sentiment_score);
-          }
-        }
-      }
-
-      // Save responses with no content (null) so they're tracked
-      for (const r of allResults.filter(r => !r.fromCache && !r.response)) {
-        if (!r.fromCache) db.insertResponse.run(p.id, r.model_name, null);
+      if (targetBrand) {
+        projectBrands = brands;
+        break;
       }
     }
 
-    // Step 6: Calculate metrics
-    console.log(`[SCAN ${scanId}] Calculating metrics...`);
-    db.updateScanStatus.run('calculating', 'Calculating visibility metrics...', scanId);
-    calculateMetrics(scanId);
+    // Fetch data for the target project
+    if (!projectBrands.length) {
+      projectBrands = await api.getBrands(targetPid);
+    }
+    const prompts = await api.getPrompts(targetPid);
+    const models = await api.getModels(targetPid);
+    let dateBody = getDates(7);
+    reportData = await api.getBrandReport(targetPid, dateBody);
+    if (!reportData.length) {
+      dateBody = {};
+      reportData = await api.getBrandReport(targetPid, dateBody);
+    }
+    let modelData = [];
+    try { modelData = await api.getBrandReportByModel(targetPid, dateBody); } catch (e) { }
+    let promptData = [];
+    try { promptData = await api.getBrandReportByPrompt(targetPid, dateBody); } catch (e) { }
 
-    // Done
-    db.completeScan.run(scanId);
-    console.log(`[SCAN ${scanId}] Complete!`);
-
-    // Background pre-warm: pre-query uncached prompts for this industry
-    // This runs after the scan is done so it doesn't slow down the user
-    if (industry) {
-      prewarmIndustry(industry, prompts).catch(err =>
-        console.error(`[PREWARM] Error for "${industry}":`, err.message)
-      );
+    // If no brand matched, create a virtual one from the slug
+    if (!targetBrand) {
+      const prettyName = companySlug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      targetBrand = { id: '__ondemand__' + companySlug, name: prettyName };
     }
 
-  } catch (err) {
-    console.error(`[SCAN ${scanId}] Error:`, err.message);
-    db.updateScanStatus.run('error', err.message, scanId);
+    console.log(`[PDF] Generating on-demand: ${targetBrand.name} -> ${filename}`);
+    await generatePDF({
+      target: targetBrand,
+      brands: projectBrands,
+      prompts, models, reportData, modelData, promptData
+    }, filename);
+
+    res.sendFile(filePath);
+  } catch (e) {
+    console.error(`[PDF] Error generating ${filename}:`, e.message);
+    res.status(500).send('Error generating report: ' + e.message);
   }
-}
+});
 
-// Background pre-warming: query AI models for any prompts not yet cached
-async function prewarmIndustry(industry, prompts) {
-  let warmed = 0;
-  for (const p of prompts) {
-    for (const client of clients) {
-      const cached = db.getCachedResponse.get(p.prompt, client.name);
-      if (!cached) {
-        try {
-          const response = await client.query(p.prompt);
-          if (response) {
-            const brands = await extractBrands(response, p.prompt);
-            db.upsertCachedResponse.run(p.prompt, client.name, response, JSON.stringify(brands));
-            warmed++;
-          }
-        } catch (err) {
-          // Silently skip failed pre-warm queries
-        }
-      }
-    }
+const BASE = 'https://api.peec.ai/customer/v1';
+
+// ── Existing proxy endpoint ──
+app.post('/proxy', async (req, res) => {
+  const { method = 'GET', apiPath, query = {}, body: reqBody, apiKey } = req.body || {};
+  const qs = new URLSearchParams(query).toString();
+  const url = `${BASE}/${apiPath}${qs ? '?' + qs : ''}`;
+  console.log(`[PROXY] ${method} ${url}`);
+  // Debug: log full request details for reports calls
+  if (apiPath && apiPath.includes('reports')) {
+    console.log(`  [DEBUG] apiKey: ${(apiKey||'').slice(0,30)}...`);
+    console.log(`  [DEBUG] query: ${JSON.stringify(query)}`);
+    console.log(`  [DEBUG] body: ${JSON.stringify(reqBody)}`);
   }
-  if (warmed > 0) console.log(`[PREWARM] Cached ${warmed} new responses for "${industry}"`);
-}
 
-// --- API Routes ---
-app.post('/api/scan/start', (req, res) => {
-  const { brand_name, prompt_clusters } = req.body;
-  let { website_url } = req.body;
-  if (!brand_name || !website_url) return res.status(400).json({ error: 'brand_name and website_url required' });
-  if (!/^https?:\/\//i.test(website_url)) website_url = 'https://' + website_url;
+  try {
+    const headers = { 'Content-Type': 'application/json', 'X-API-Key': apiKey || '' };
+    const opts = { method, headers };
+    if (method === 'POST' && reqBody) opts.body = JSON.stringify(reqBody);
 
-  const result = db.createScan.run(brand_name, website_url, prompt_clusters || '');
-  const scanId = result.lastInsertRowid;
+    const r = await fetch(url, opts);
+    const text = await r.text();
+    console.log(`  => ${r.status} (${text.slice(0, 200)})`);
 
-  // Run async — don't await
-  runScan(scanId);
-
-  res.json({ scan_id: scanId, status: 'pending' });
+    try {
+      const data = JSON.parse(text);
+      return res.status(r.status).json(data);
+    } catch {
+      return res.status(r.status).json({ error: text.trim() || `HTTP ${r.status}`, status: r.status });
+    }
+  } catch (e) {
+    console.error(`  ERR: ${e.message}`);
+    res.status(502).json({ error: e.message });
+  }
 });
 
-app.get('/api/scan/:id/status', (req, res) => {
-  const scan = db.getScan.get(req.params.id);
-  if (!scan) return res.status(404).json({ error: 'Scan not found' });
-  res.json({ id: scan.id, status: scan.status, progress: scan.progress, brand_name: scan.brand_name });
+// ── CSV Bulk Enrichment (data only, no PDF generation — PDFs are on-demand) ──
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+const DEFAULTS = { visibility: 0.012, mentions: 2, sentiment: 53, market_share: 0.004, reputation: 53 };
+const CSV_PROJECT_DEFAULT = 'or_be4b66ba-1ddb-43dc-bafd-bcd28fb1b842'; // M&A Banks 2
+
+app.post('/api/csv/process', upload.single('csv'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No CSV file uploaded' });
+  const apiKey = req.body.apiKey || process.env.PEEC_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'API key required' });
+  const CSV_PROJECT = req.body.projectId || CSV_PROJECT_DEFAULT;
+
+  try {
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const api = new PeecAPI(apiKey);
+
+    // Parse CSV
+    const records = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, relax_column_count: true });
+    const openRows = records.filter(r => (r['Open/Closed'] || '').toString().trim().toUpperCase() === 'TRUE');
+
+    // Fetch brands + report data
+    const brands = await api.getBrands(CSV_PROJECT);
+    let reportData = await api.getBrandReport(CSV_PROJECT, getDates(7));
+    if (!reportData.length) reportData = await api.getBrandReport(CSV_PROJECT, {});
+
+    // Match companies
+    const companyMatches = new Map();
+    const uniqueCompanies = [...new Set(openRows.map(r => r.current_company).filter(Boolean))];
+    for (const c of uniqueCompanies) {
+      const m = matchBrand(c, brands);
+      if (m) companyMatches.set(c, m);
+    }
+
+    function toFilename(c) {
+      return 'AI_Visibility_Analysis_-_' + c.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').toLowerCase() + '.pdf';
+    }
+    function fmt3(rd, exId, f) {
+      const s = [...rd].filter(r => r.brand?.id !== exId).sort((a, b) => (b[f] || 0) - (a[f] || 0)).slice(0, 3);
+      if (!s.length) return '';
+      const p = s.map(r => r.brand?.name + ' at ' + ((r[f] || 0) * 100).toFixed(1) + '%');
+      return p.length === 1 ? p[0] : p.length === 2 ? p[0] + ' and ' + p[1] : p.slice(0, -1).join(', ') + ', and ' + p[p.length - 1];
+    }
+
+    // Build enriched rows (NO PDF generation)
+    const enrichedRows = [];
+    for (const row of openRows) {
+      const c = row.current_company || '';
+      if (!c) continue;
+      const m = companyMatches.get(c);
+      let vis = DEFAULTS.visibility, men = DEFAULTS.mentions, sen = DEFAULTS.sentiment, ms = DEFAULTS.market_share, rep = DEFAULTS.reputation;
+      if (m) {
+        const br = reportData.find(r => r.brand?.id === m.brand.id);
+        if (br) { vis = br.visibility || vis; men = br.mention_count || men; sen = br.sentiment || sen; ms = br.share_of_voice || ms; rep = br.sentiment || rep; }
+      }
+      const exId = m ? m.brand.id : null;
+      enrichedRows.push({
+        first_name: row.first_name || '', last_name: row.last_name || '',
+        current_company: c, current_company_position: row.current_company_position || '',
+        profile_url: row.profile_url || '', 'Open/Closed': row['Open/Closed'] || '',
+        Visibility: ((vis * 100).toFixed(1)) + '%',
+        'Top Competitors Visibility': fmt3(reportData, exId, 'visibility'),
+        'Top Competitors Market Share': fmt3(reportData, exId, 'share_of_voice'),
+        'Report Link': baseUrl + '/reports/' + encodeURIComponent(toFilename(c)),
+        Mentions: men, 'Market Share': ((ms * 100).toFixed(1)) + '%',
+        Sentiment: sen, Reputation: rep
+      });
+    }
+
+    // Sort by visibility descending
+    enrichedRows.sort((a, b) => parseFloat(b.Visibility) - parseFloat(a.Visibility));
+
+    // Build CSV string
+    const headers = ['first_name', 'last_name', 'current_company', 'current_company_position', 'profile_url', 'Open/Closed', 'Visibility', 'Top Competitors Visibility', 'Top Competitors Market Share', 'Report Link', 'Mentions', 'Market Share', 'Sentiment', 'Reputation'];
+    const csvLines = [headers.join(',')];
+    for (const row of enrichedRows) {
+      csvLines.push(headers.map(h => { const v = String(row[h] || ''); return (v.includes(',') || v.includes('"') || v.includes('\n')) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','));
+    }
+
+    // Use uploaded filename as base for download name
+    const origName = (req.file.originalname || 'results').replace(/\.csv$/i, '');
+    const dlName = origName + ' - AI Visibility Reports.csv';
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${dlName}"`);
+    res.send(csvLines.join('\n'));
+  } catch (e) {
+    console.error('[CSV] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
-app.get('/api/scan/:id/report', (req, res) => {
-  const report = assembleReport(Number(req.params.id));
-  if (!report) return res.status(404).json({ error: 'Report not found' });
-  res.json(report);
-});
-
-app.get('/api/scans', (req, res) => {
-  res.json(db.getAllScans.all());
-});
-
-app.delete('/api/scan/:id', (req, res) => {
-  db.deleteScan.run(req.params.id);
-  res.json({ ok: true });
-});
-
-// CSV export for cold outreach
-app.get('/api/scan/:id/csv', (req, res) => {
-  const report = assembleReport(Number(req.params.id));
-  if (!report) return res.status(404).json({ error: 'Report not found' });
-
-  const rows = [['Rank', 'Brand', 'Visibility %', 'Market Share %', 'Avg Position', 'Mentions', 'Reputation', 'Industry', 'Scan Date']];
-  report.metrics.forEach((b, i) => {
-    const rep = Math.round(((b.avg_sentiment + 1) / 2) * 100);
-    rows.push([
-      i + 1, `"${b.brand_name}"`, b.visibility_pct, b.market_share_pct,
-      b.avg_rank.toFixed(1), b.mention_count, rep,
-      `"${report.scan.industry || ''}"`, `"${report.scan.created_at}"`
-    ]);
-  });
-
-  const csv = rows.map(r => r.join(',')).join('\n');
-  const brand = report.scan.brand_name.replace(/[^a-zA-Z0-9]/g, '_');
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="AI_Visibility_${brand}.csv"`);
-  res.send(csv);
-});
-
-// Shareable report HTML page
-app.get('/report/:id', (req, res) => {
-  const report = assembleReport(Number(req.params.id));
-  if (!report) return res.status(404).send('Report not found');
-  // Serve the main page with auto-load script
-  res.send(`<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Visibility Report - ${report.scan.brand_name}</title>
-<meta property="og:title" content="AI Visibility Report - ${report.scan.brand_name}">
-<meta property="og:description" content="${report.scan.brand_name} AI visibility: ${report.target.visibility_pct}% across ${report.models.length} AI platforms">
-<script>window.__REPORT_DATA=${JSON.stringify(report)};window.__REPORT_ID=${req.params.id};</script>
-</head><body><script>window.location.href='/?view=${req.params.id}';</script></body></html>`);
-});
-
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`\n  ✅  http://localhost:${PORT}\n`));

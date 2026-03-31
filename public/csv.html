@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Bulk Processing — Thrive</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070d;--s1:#111119;--s2:#18182a;--bd:#282840;--tx:#e0e0f0;--dim:#7878a0;--ac:#FF6600;--ac2:#7D963D;--grn:#00d4aa;--red:#ff5e6e;--orn:#ffc552}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+.hdr{padding:16px 32px;border-bottom:1px solid var(--bd);background:var(--s1);display:flex;align-items:center;gap:14px}
+.hdr .hdr-logo{height:28px;display:block;opacity:1}
+.hdr .sep{width:1px;height:22px;background:var(--bd)}
+.hdr .sub{font-size:13px;color:var(--dim)}
+.hdr nav{margin-left:auto;display:flex;gap:8px}
+.hdr nav a{font-size:12px;font-weight:600;color:var(--dim);text-decoration:none;padding:6px 14px;border-radius:6px;transition:all .2s}
+.hdr nav a:hover,.hdr nav a.active{color:var(--tx);background:var(--s2)}
+
+.cfg{max-width:900px;margin:32px auto;padding:0 20px}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:28px 32px;margin-bottom:20px}
+.card h2{font-size:17px;font-weight:600;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.card h2 .badge{font-size:10px;font-weight:700;background:var(--ac);color:#fff;padding:3px 8px;border-radius:4px;letter-spacing:.5px}
+
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.fg label{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.fg input{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.fg input:focus{border-color:var(--ac)}
+.fg input::placeholder{color:var(--dim);opacity:.7}
+.dd{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--bd);border-radius:0 0 7px 7px;max-height:240px;overflow-y:auto;z-index:50;display:none}.dd.open{display:block}
+.dd-item{padding:8px 14px;cursor:pointer;font-size:13px}.dd-item:hover{background:var(--ac);color:#fff}
+
+/* File upload drop zone */
+.drop-zone{background:var(--bg);border:2px dashed var(--bd);border-radius:10px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .25s}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--ac);background:#0d0d1a}
+.drop-zone .icon{font-size:32px;margin-bottom:8px;opacity:.5}
+.drop-zone .main-text{font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px}
+.drop-zone .sub-text{font-size:11px;color:var(--dim)}
+.drop-zone.has-file{border-color:var(--grn);border-style:solid}
+.drop-zone.has-file .icon{color:var(--grn);opacity:1}
+
+/* Multi-select project list */
+.proj-list{max-height:200px;overflow-y:auto;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:6px}
+.proj-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:5px;cursor:pointer;font-size:13px;transition:background .15s}
+.proj-item:hover{background:var(--s2)}
+.proj-item input[type="checkbox"]{accent-color:var(--ac);width:16px;height:16px;cursor:pointer}
+.proj-item.selected{background:rgba(124,92,252,.1)}
+.proj-item .pname{flex:1}
+.proj-item .pid{font-size:10px;font-family:'Space Mono',monospace;color:var(--dim)}
+.proj-loading{padding:16px;text-align:center;color:var(--dim);font-size:12px}
+
+.btn{margin-top:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--ac),#FF8C33);border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 24px #FF660055}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Progress panel */
+.progress-panel{display:none}
+.progress-panel.on{display:block}
+.progress-bar-wrap{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:14px}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--ac),var(--grn));border-radius:3px;width:0%;transition:width .4s ease}
+.progress-status{font-size:13px;font-weight:600;color:var(--tx);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.progress-status .sp{display:inline-block;width:14px;height:14px;border:2px solid #fff4;border-top-color:var(--ac);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.log{padding:12px;background:var(--bg);border-radius:7px;font-size:11px;font-family:'Space Mono',monospace;color:var(--dim);max-height:300px;overflow-y:auto;line-height:1.7}
+.log .ok{color:var(--grn)}.log .er{color:var(--red)}.log .wr{color:var(--orn)}
+
+/* Results panel */
+.results-panel{display:none}
+.results-panel.on{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg);border:1px solid var(--bd);border-radius:9px;padding:14px;text-align:center}
+.stat-card .sv{font-size:24px;font-weight:700;color:var(--ac2);font-family:'Space Mono',monospace}
+.stat-card .sl{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
+
+.dl-btns{display:flex;gap:12px}
+.dl-btn{flex:1;padding:12px;border-radius:9px;border:1px solid var(--bd);background:var(--s2);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;transition:all .2s}
+.dl-btn:hover{background:var(--ac);border-color:var(--ac)}
+.dl-btn.primary{background:linear-gradient(135deg,var(--ac),#FF8C33);border-color:transparent;color:#fff}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <img class="hdr-logo" src="/favicon.png" alt="Thrive">
+  <div class="sep"></div>
+  <div class="sub">CSV Bulk Processing</div>
+  <nav>
+    <a href="/">Single Report</a>
+    <a href="/csv.html" class="active">Bulk CSV</a>
+  </nav>
+</div>
+
+<div class="cfg">
+  <div class="card" id="configCard">
+    <h2>Bulk Report Generator</h2>
+
+    <div class="fg" style="position:relative">
+      <label>Peec Project</label>
+      <input type="text" id="projectName" placeholder="Search projects..." autocomplete="off">
+      <input type="hidden" id="projectId">
+      <div class="dd" id="projectDD"></div>
+    </div>
+
+    <div class="fg">
+      <label>CSV File (LinkedIn Sales Nav Export)</label>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('csvFile').click()">
+        <div class="icon">&#128196;</div>
+        <div class="main-text">Drop CSV file here or click to browse</div>
+        <div class="sub-text">Columns: first_name, last_name, current_company, current_company_position, profile_url, Open/Closed</div>
+      </div>
+      <input type="file" id="csvFile" accept=".csv" style="display:none">
+    </div>
+
+    <button class="btn" id="processBtn" onclick="startProcessing()" disabled>Process & Download Enriched CSV</button>
+    <div id="statusMsg" style="margin-top:14px;font-size:12px;color:var(--dim);display:none"></div>
+  </div>
+</div>
+
+<script>
+const API_KEY='skc-Y29fZjA5MmVkODQtNTQzYi00NTZjLWFjZjctNTVlYjhiMDhlM2E4-Ho6QiNRBL0upAuav28lwbg';
+let selectedFile = null;
+let allProjects = [];
+const dropZone = document.getElementById('dropZone');
+const csvInput = document.getElementById('csvFile');
+const projInput = document.getElementById('projectName');
+const projDD = document.getElementById('projectDD');
+const projHidden = document.getElementById('projectId');
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Project autocomplete ──
+projInput.addEventListener('focus', async () => {
+  if (!allProjects.length) {
+    try {
+      const r = await fetch('/proxy', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ method:'GET', apiPath:'projects', apiKey: API_KEY }) });
+      const d = await r.json();
+      allProjects = (d.data || []).sort((a, b) => a.name.localeCompare(b.name));
+    } catch(e) {}
+  }
+  showProjDD(projInput.value);
+});
+projInput.addEventListener('input', () => showProjDD(projInput.value));
+
+function showProjDD(q) {
+  const m = allProjects.filter(p => !q || p.name.toLowerCase().includes(q.toLowerCase()));
+  if (!m.length) { projDD.classList.remove('open'); return; }
+  projDD.innerHTML = m.map(p => `<div class="dd-item" data-id="${p.id}" data-name="${esc(p.name)}">${esc(p.name)}</div>`).join('');
+  projDD.classList.add('open');
+}
+
+projDD.addEventListener('click', e => {
+  const i = e.target.closest('.dd-item');
+  if (!i) return;
+  projInput.value = i.dataset.name;
+  projHidden.value = i.dataset.id;
+  projDD.classList.remove('open');
+  checkReady();
+});
+
+document.addEventListener('click', e => {
+  if (!projInput.contains(e.target) && !projDD.contains(e.target)) projDD.classList.remove('open');
+});
+
+// ── File drop zone ──
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) handleFile(ev.dataTransfer.files[0]); });
+csvInput.addEventListener('change', () => { if (csvInput.files.length) handleFile(csvInput.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.endsWith('.csv')) { alert('Please select a CSV file'); return; }
+  selectedFile = file;
+  dropZone.classList.add('has-file');
+  dropZone.innerHTML = `<div class="icon" style="color:var(--grn)">&#9989;</div><div class="main-text">${file.name}</div><div class="sub-text">${(file.size / 1024).toFixed(1)} KB — Click to change</div>`;
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('processBtn').disabled = !(selectedFile && projHidden.value);
+}
+
+// ── Processing ──
+async function startProcessing() {
+  if (!selectedFile || !projHidden.value) return;
+  const btn = document.getElementById('processBtn');
+  const msg = document.getElementById('statusMsg');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sp"></span> Processing...';
+  msg.style.display = 'block';
+  msg.style.color = 'var(--dim)';
+  msg.textContent = 'Uploading and enriching CSV with live Peec data... PDFs will generate on-demand when links are clicked.';
+
+  const form = new FormData();
+  form.append('csv', selectedFile);
+  form.append('projectId', projHidden.value);
+
+  try {
+    const res = await fetch('/api/csv/process', { method: 'POST', body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Server error' }));
+      throw new Error(err.error || 'Server error');
+    }
+    const cd = res.headers.get('Content-Disposition') || '';
+    const fnMatch = cd.match(/filename="([^"]+)"/);
+    const dlName = fnMatch ? fnMatch[1] : 'enriched-results.csv';
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = dlName;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    msg.style.color = 'var(--grn)';
+    msg.textContent = 'Done! Enriched CSV downloaded. Report links in the CSV will generate PDFs on-demand when visited.';
+  } catch (e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Process & Download Enriched CSV';
+  }
+}
+</script>
+</body>
+</html>
