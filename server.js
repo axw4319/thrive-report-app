@@ -81,7 +81,7 @@ if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
 const { PeecAPI, getDates } = require('./lib/peec-api');
 const { matchBrand } = require('./lib/fuzzy');
-const { generatePDF, closeBrowser } = require('./lib/pdf-generator');
+const { generatePDF, closeBrowser, getBrowser } = require('./lib/pdf-generator');
 
 // URL format: /reports/AI_Visibility_Analysis_-_Company_Name.pdf
 app.get('/reports/:filename', async (req, res) => {
@@ -312,4 +312,8 @@ app.post('/api/csv/process', upload.single('csv'), async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`\n  ✅  http://localhost:${PORT}\n`));
+app.listen(PORT, () => {
+  console.log(`\n  ✅  http://localhost:${PORT}\n`);
+  // Pre-warm Puppeteer browser so first PDF request is fast
+  getBrowser().then(() => console.log('  🚀  Puppeteer browser pre-warmed')).catch(() => {});
+});
