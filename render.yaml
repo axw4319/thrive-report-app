@@ -19,3 +19,7 @@ services:
         sync: false
       - key: PERPLEXITY_API_KEY
         sync: false
+    disk:
+      name: thrive-reports
+      mountPath: /opt/render/project/src/reports
+      sizeGB: 1
