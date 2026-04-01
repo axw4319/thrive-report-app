@@ -3,6 +3,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
+const XLSX = require('xlsx');
 // CSV bulk processing runs locally via run-csv.js, not on the server
 
 const crypto = require('crypto');
@@ -229,7 +230,15 @@ app.post('/api/csv/process', upload.single('csv'), async (req, res) => {
     const api = new PeecAPI(apiKey);
 
     // Parse CSV
-    const records = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, relax_column_count: true });
+    let records;
+    const fileName = req.file.originalname || 'file.csv';
+    if (fileName.match(/\.xlsx?$/i)) {
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      records = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+    } else {
+      records = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, relax_column_count: true });
+    }
     const openRows = records.filter(r => (r['Open/Closed'] || '').toString().trim().toUpperCase() === 'TRUE');
 
     // Fetch brands + report data

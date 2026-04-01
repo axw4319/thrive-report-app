@@ -106,10 +106,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
       <label>CSV File (LinkedIn Sales Nav Export)</label>
       <div class="drop-zone" id="dropZone" onclick="document.getElementById('csvFile').click()">
         <div class="icon">&#128196;</div>
-        <div class="main-text">Drop CSV file here or click to browse</div>
+        <div class="main-text">Drop CSV or XLSX file here or click to browse</div>
         <div class="sub-text">Columns: first_name, last_name, current_company, current_company_position, profile_url, Open/Closed</div>
       </div>
-      <input type="file" id="csvFile" accept=".csv" style="display:none">
+      <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" style="display:none">
     </div>
 
     <button class="btn" id="processBtn" onclick="startProcessing()" disabled>Process & Download Enriched CSV</button>
@@ -170,7 +170,7 @@ dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) hand
 csvInput.addEventListener('change', () => { if (csvInput.files.length) handleFile(csvInput.files[0]); });
 
 function handleFile(file) {
-  if (!file.name.endsWith('.csv')) { alert('Please select a CSV file'); return; }
+  if (!file.name.match(/\.(csv|xlsx|xls)$/i)) { alert('Please select a CSV or XLSX file'); return; }
   selectedFile = file;
   dropZone.classList.add('has-file');
   dropZone.innerHTML = `<div class="icon" style="color:var(--grn)">&#9989;</div><div class="main-text">${file.name}</div><div class="sub-text">${(file.size / 1024).toFixed(1)} KB — Click to change</div>`;
@@ -195,6 +195,7 @@ async function startProcessing() {
   const form = new FormData();
   form.append('csv', selectedFile);
   form.append('projectId', projHidden.value);
+  form.append('apiKey', API_KEY);
 
   try {
     const res = await fetch('/api/csv/process', { method: 'POST', body: form });
