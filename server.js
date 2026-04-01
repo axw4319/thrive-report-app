@@ -138,22 +138,28 @@ app.get('/reports/:filename', async (req, res) => {
       }
     }
 
-    // Fetch data for the target project
-    if (!projectBrands.length) {
-      projectBrands = await api.getBrands(targetPid);
-    }
-    const prompts = await api.getPrompts(targetPid);
-    const models = await api.getModels(targetPid);
+    // Fetch all data for the target project in parallel
     let dateBody = getDates(7);
-    reportData = await api.getBrandReport(targetPid, dateBody);
+    const [brandsRes, prompts, models, reportRes] = await Promise.all([
+      projectBrands.length ? Promise.resolve(projectBrands) : api.getBrands(targetPid),
+      api.getPrompts(targetPid),
+      api.getModels(targetPid),
+      api.getBrandReport(targetPid, dateBody)
+    ]);
+    projectBrands = brandsRes;
+    reportData = reportRes;
     if (!reportData.length) {
       dateBody = {};
       reportData = await api.getBrandReport(targetPid, dateBody);
     }
-    let modelData = [];
-    try { modelData = await api.getBrandReportByModel(targetPid, dateBody); } catch (e) { }
-    let promptData = [];
-    try { promptData = await api.getBrandReportByPrompt(targetPid, dateBody); } catch (e) { }
+    // Fetch model and prompt breakdowns in parallel
+    let modelData = [], promptData = [];
+    const [md, pd] = await Promise.all([
+      api.getBrandReportByModel(targetPid, dateBody).catch(() => []),
+      api.getBrandReportByPrompt(targetPid, dateBody).catch(() => [])
+    ]);
+    modelData = md;
+    promptData = pd;
 
     // If no brand matched, create a virtual one from the slug
     if (!targetBrand) {
