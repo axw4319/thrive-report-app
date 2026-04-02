@@ -306,11 +306,29 @@ app.post('/api/csv/process', upload.single('csv'), async (req, res) => {
     }
 
     // Use uploaded filename as base for download name
-    const origName = (req.file.originalname || 'results').replace(/\.csv$/i, '');
+    const origName = (req.file.originalname || 'results').replace(/\.(csv|xlsx?)$/i, '');
     const dlName = origName + ' - AI Visibility Reports.csv';
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${dlName}"`);
     res.send(csvLines.join('\n'));
+
+    // Background: pre-generate all PDFs so they're instant when clicked
+    const pdfCompanies = [...new Set(enrichedRows.map(r => r['Report Link']).filter(Boolean))];
+    if (pdfCompanies.length) {
+      console.log(`[CSV] Pre-generating ${pdfCompanies.length} PDFs in background...`);
+      (async () => {
+        let ok = 0, err = 0;
+        for (const link of pdfCompanies) {
+          try {
+            const pdfUrl = link.startsWith('http') ? link : `${baseUrl}${link}`;
+            const r = await fetch(pdfUrl, { timeout: 60000 });
+            if (r.ok) ok++;
+            else err++;
+          } catch (e) { err++; }
+        }
+        console.log(`[CSV] PDF pre-generation done: ${ok} OK, ${err} errors`);
+      })().catch(e => console.error('[CSV] PDF pre-generation error:', e.message));
+    }
   } catch (e) {
     console.error('[CSV] Error:', e.message);
     res.status(500).json({ error: e.message });
