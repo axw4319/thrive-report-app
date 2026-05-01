@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 // Pre-generate all PDFs by hitting each brand's report URL
-// Usage: node tools/preload-pdfs.js [base-url]
+// Usage: node tools/preload-pdfs.js [base-url] [--start N]
+//   --start N: skip the first N brands (use to resume an interrupted run)
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const fetch = require('node-fetch');
 const { PeecAPI } = require('../lib/peec-api');
 
-const BASE_URL = process.argv[2] || 'http://localhost:3000';
+const args = process.argv.slice(2);
+const startFlagIdx = args.indexOf('--start');
+const START_FROM = startFlagIdx !== -1 ? parseInt(args[startFlagIdx + 1], 10) : 0;
+const BASE_URL = (args[0] && !args[0].startsWith('--')) ? args[0] : 'http://localhost:3000';
 const API_KEY = process.env.PEEC_API_KEY;
 const CONCURRENCY = 3;
 const DELAY_MS = 1000;
@@ -43,7 +47,13 @@ async function main() {
   }
 
   const brandList = [...allBrands].sort();
-  console.log(`\n${brandList.length} unique brands to pre-generate\n`);
+  const totalBrands = brandList.length;
+  if (START_FROM > 0) {
+    console.log(`\nResuming from brand ${START_FROM + 1}/${totalBrands} (skipping first ${START_FROM})\n`);
+    brandList.splice(0, START_FROM);
+  } else {
+    console.log(`\n${totalBrands} unique brands to pre-generate\n`);
+  }
 
   let done = 0;
   let skipped = 0;
@@ -62,14 +72,17 @@ async function main() {
           const label = elapsed < 1 ? 'cached' : `${elapsed}s`;
           done++;
           if (elapsed < 1) skipped++;
-          console.log(`  ✅ [${done}/${brandList.length}] ${brand} (${label})`);
+          const pos = START_FROM + done;
+          console.log(`  ✅ [${pos}/${totalBrands}] ${brand} (${label})`);
         } else {
           errors++;
-          console.log(`  ❌ [${done + errors}/${brandList.length}] ${brand}: HTTP ${res.status}`);
+          const pos = START_FROM + done + errors;
+          console.log(`  ❌ [${pos}/${totalBrands}] ${brand}: HTTP ${res.status}`);
         }
       } catch (e) {
         errors++;
-        console.log(`  ❌ [${done + errors}/${brandList.length}] ${brand}: ${e.message}`);
+        const pos = START_FROM + done + errors;
+        console.log(`  ❌ [${pos}/${totalBrands}] ${brand}: ${e.message}`);
       }
     });
     await Promise.all(promises);
