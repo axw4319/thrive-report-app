@@ -68,6 +68,8 @@ app.use((req, res, next) => {
   if (req.path === '/proxy') return next();
   // Allow CSV API endpoint
   if (req.path === '/api/csv/process') return next();
+  // Allow bulk PDF upload (token-protected internally)
+  if (req.path === '/api/admin/upload-pdfs') return next();
   // Everything else requires auth
   if (!isAuthed(req)) return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
   next();
@@ -333,6 +335,35 @@ app.post('/api/csv/process', upload.single('csv'), async (req, res) => {
     console.error('[CSV] Error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Bulk PDF upload (admin only, token-protected) ─────────────────────────
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 }, // 10MB per file, 20 per request
+});
+app.post('/api/admin/upload-pdfs', pdfUpload.array('pdfs', 20), (req, res) => {
+  const token = req.headers['x-upload-token'] || req.body.token;
+  if (!process.env.ADMIN_PASSWORD || token !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'no files' });
+  const results = [];
+  for (const f of req.files) {
+    const name = path.basename(f.originalname || '');
+    if (!name || !/^AI_Visibility_Analysis_-_[\w-]+\.pdf$/i.test(name)) {
+      results.push({ name, ok: false, error: 'invalid filename' });
+      continue;
+    }
+    try {
+      fs.writeFileSync(path.join(REPORTS_DIR, name), f.buffer);
+      results.push({ name, ok: true, bytes: f.buffer.length });
+    } catch (e) {
+      results.push({ name, ok: false, error: e.message });
+    }
+  }
+  const ok = results.filter(r => r.ok).length;
+  res.json({ uploaded: ok, failed: results.length - ok, results });
 });
 
 const PORT = process.env.PORT || 3000;
