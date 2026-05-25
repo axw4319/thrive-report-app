@@ -37,6 +37,7 @@ Thrive green `#7D963D`, orange `#FF6600`. Hardcoded — don't accidentally inher
 - **Test PDF output before claiming done** — use the [qa-flow-tester](/Users/aaronwhittaker/.claude/skills/qa-flow-tester/SKILL.md) skill (tests live at [tests/playwright/specs/](tests/playwright/specs/)). Walk: admin login → CSV upload → report list → PDF download → assert PDF non-empty.
 - **Watch persistent disk usage** — 1GB cap on Render. Local dev disk hit 4.8GB / 9k+ PDFs by 2026-05-23; production only holds what the persistent disk can fit.
 - **Push after every commit** — see [feedback_always_push_after_commit.md](/Users/aaronwhittaker/.claude/projects/-Users-aaronwhittaker-Claude/memory/feedback_always_push_after_commit.md).
+- **TX lead lists: collapse cities to metros first.** Before running `node tools/live-csv/run.js` on any TX lead list, normalize the `Area` column to 4-5 metro buckets (Houston, Dallas, Austin, San Antonio, Other TX) via [tools/live-csv/new-sheet/normalize-to-metros.py](tools/live-csv/new-sheet/normalize-to-metros.py). The pipeline groups by `(city, industry)` and runs 5 prompts × 4 models *per group*. 233 raw cities → 2,802 groups → 4-day ETA + ~22hr wasted API spend (verified 2026-05-22). Metro collapse → ~83 groups → finishes in hours. After Phase 2, grep `unique companies in N (city, industry)` and sanity-check N before walking away. Trade-off accepted: prompts run at metro level not suburb level.
 
 ## Don't touch
 - `ADMIN_PASSWORD` env var without coordination
