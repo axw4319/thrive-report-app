@@ -70,6 +70,8 @@ app.use((req, res, next) => {
   if (req.path === '/api/csv/process') return next();
   // Allow bulk PDF upload (token-protected internally)
   if (req.path === '/api/admin/upload-pdfs') return next();
+  // Allow scan-PDF gateway (domain-allowlisted internally — see /api/url-to-pdf below)
+  if (req.path === '/api/url-to-pdf') return next();
   // Everything else requires auth
   if (!isAuthed(req)) return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
   next();
@@ -180,6 +182,64 @@ app.get('/reports/:filename', async (req, res) => {
   } catch (e) {
     console.error(`[PDF] Error generating ${filename}:`, e.message);
     res.status(500).send('Error generating report: ' + e.message);
+  }
+});
+
+// ── URL-to-PDF gateway: render any Thrive-hosted URL to a branded PDF ──
+// Used by thrive-ai-visibility to produce a downloadable AI scan report PDF
+// for MCs. Domain-allowlisted to prevent abuse as an open PDF-gen proxy.
+const PDF_URL_ALLOWLIST = [
+  /^https:\/\/thrive-ai-visibility\.onrender\.com\//,
+  /^https:\/\/[a-z0-9-]+\.thriveagency\.com\//,
+  /^https:\/\/thriveagency\.com\//,
+  /^https:\/\/thrive-[a-z0-9-]+\.onrender\.com\//,  // staging previews
+];
+
+function safeFilename(name) {
+  return String(name || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'report.pdf';
+}
+
+app.get('/api/url-to-pdf', async (req, res) => {
+  const url = String(req.query.url || '').trim();
+  const requestedName = safeFilename(req.query.filename || 'thrive-report.pdf');
+  const filename = requestedName.endsWith('.pdf') ? requestedName : requestedName + '.pdf';
+
+  if (!url || !PDF_URL_ALLOWLIST.some(re => re.test(url))) {
+    return res.status(400).json({
+      error: 'url must be from an allowed Thrive domain',
+      allowed: ['thrive-ai-visibility.onrender.com', '*.thriveagency.com', 'thriveagency.com'],
+    });
+  }
+
+  const filePath = path.join(REPORTS_DIR, filename);
+
+  // Cache hit: return existing PDF
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+
+  let page;
+  try {
+    const browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 2 });
+    console.log(`[url-to-pdf] rendering ${url} → ${filename}`);
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+    // Give any deferred Thrive analytics + content a moment to settle
+    await new Promise(r => setTimeout(r, 1500));
+    await page.pdf({
+      path: filePath,
+      format: 'Letter',
+      printBackground: true,
+      margin: { top: '0.4in', bottom: '0.4in', left: '0.4in', right: '0.4in' },
+    });
+    await page.close();
+    console.log(`[url-to-pdf] generated ${filename} (${fs.statSync(filePath).size} B)`);
+    res.sendFile(filePath);
+  } catch (e) {
+    if (page) try { await page.close(); } catch {}
+    console.error(`[url-to-pdf] error rendering ${url}:`, e.message);
+    res.status(500).json({ error: 'PDF generation failed', detail: e.message });
   }
 });
 
