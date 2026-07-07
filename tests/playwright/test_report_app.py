@@ -24,8 +24,11 @@ def check(name, cond, detail=''):
 def main():
     from playwright.sync_api import sync_playwright
     js_errors = []
+    # Optional: "domain:ip" to pin DNS (e.g. fresh subdomains not yet in the local resolver cache)
+    resolve = os.environ.get('RESOLVE_PIN', '')
+    args = [f'--host-resolver-rules=MAP {resolve.split(":")[0]} {resolve.split(":")[1]}'] if resolve else []
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        b = p.chromium.launch(args=args)
         pg = b.new_page(viewport={'width': 1280, 'height': 900})
         pg.on('pageerror', lambda e: js_errors.append(str(e)))
 
@@ -65,9 +68,12 @@ def main():
         check('header uses green gradient', 'linear-gradient' in hdr_bg, hdr_bg)
 
         print('\n== API validation ==')
-        resp = pg.request.post(BASE + '/api/live-audit', data=json.dumps({'city': 'Dallas, TX'}),
-                               headers={'Content-Type': 'application/json'})
-        check('missing company rejected with 400', resp.status == 400)
+        status = pg.evaluate('''async () => {
+            const r = await fetch('/api/live-audit', {method:'POST',
+                headers:{'Content-Type':'application/json'}, body: JSON.stringify({city:'Dallas, TX'})});
+            return r.status;
+        }''')
+        check('missing company rejected with 400', status == 400)
 
         if RUN_LIVE:
             print('\n== Full live audit run (national, with industry override) ==')
@@ -94,10 +100,10 @@ def main():
                 check('detected industry shown', 'striping' in (pg.text_content('#r-industry') or ''))
                 pdf = pg.get_attribute('#r-pdf', 'href')
                 check('PDF link present', bool(pdf))
-                r = urllib.request.urlopen(pdf)
-                blob = r.read()
-                check('PDF serves as application/pdf', r.headers.get('Content-Type') == 'application/pdf')
-                check('PDF is substantial (>100KB)', len(blob) > 100_000, f'{len(blob)} bytes')
+                r = pg.goto(pdf)
+                check('PDF serves as application/pdf', (r.headers.get('content-type') or '') == 'application/pdf')
+                check('PDF is substantial (>100KB)', int(r.headers.get('content-length') or 0) > 100_000,
+                      r.headers.get('content-length'))
                 print(f'  audit took {round(time.time() - t0)}s — {pdf}')
 
         b.close()
