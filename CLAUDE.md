@@ -26,8 +26,14 @@ npm start              # node server.js, port 3000
 - `reports/` — generated PDF cache (gitignored as of 2026-05-23; lives on Render persistent disk in prod, local disk in dev)
 - `tools/` — utility scripts
 
+## Two report engines — know which one you're using
+1. **Peec engine** (`lib/peec-api.js` + `/api/csv/process` + on-demand `/reports/:filename` fallback) — only works for brands already in a Peec project. The on-demand fallback renders a thin junk PDF (1 brand, 0 conversations) for unknown slugs — never share those URLs.
+2. **Live engine** (`lib/live-engine/`) — any company, no Peec needed: classifies industry from the website, generates 5 prompts, runs them live across ChatGPT/Gemini/Perplexity/Google AI Overview, renders the full PDF. Exposed two ways:
+   - **Web (sales team):** `https://thrive-report-app.onrender.com/live-audit.html` (admin login) → `POST /api/live-audit` async job → public PDF link. ~2 min per company, max 2 concurrent.
+   - **CLI (bulk):** `node tools/live-csv/run.js --input leads.csv --output out.xlsx`
+
 ## Recent work
-Auto pre-generate PDFs • Add 444+ pre-generated reports • Fix favicon • Add 233 pre-generated reports • Parallelize Peec API calls.
+Live audit web UI + API (2026-07-07) • Restore Action Plan PDF section from stash (2026-07-07) • Auto pre-generate PDFs • Add 444+ pre-generated reports • Parallelize Peec API calls.
 
 ## Brand
 Thrive green `#7D963D`, orange `#FF6600`. Hardcoded — don't accidentally inherit ProCloser or RevFactor palettes.
