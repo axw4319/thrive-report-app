@@ -1,6 +1,6 @@
 # thrive-report-app
 
-**What it is:** White-labeled AI Visibility report generator branded for Thrive Agency. Pulls Peec data + AI search visibility + technical audit, renders branded PDFs. Most mature of the three report-app projects.
+**What it is:** White-labeled AI Visibility report generator branded for Thrive Agency. **Live at https://ai-report.thriveagency.com** (custom domain via Cloudflare CNAME, added 2026-07-07; thrive-report-app.onrender.com is the same service). Pulls Peec data + AI search visibility + technical audit, renders branded PDFs. Most mature of the three report-app projects.
 
 **Stack:** Node • Express 4 • Puppeteer • OpenAI + Gemini • Multer • CSV/XLSX • node-fetch
 **Repo:** `https://github.com/axw4319/thrive-report-app.git`
@@ -29,7 +29,7 @@ npm start              # node server.js, port 3000
 ## Two report engines — know which one you're using
 1. **Peec engine** (`lib/peec-api.js` + `/api/csv/process` + on-demand `/reports/:filename` fallback) — only works for brands already in a Peec project. The on-demand fallback renders a thin junk PDF (1 brand, 0 conversations) for unknown slugs — never share those URLs.
 2. **Live engine** (`lib/live-engine/`) — any company, no Peec needed: classifies industry from the website, generates 5 prompts, runs them live across ChatGPT/Gemini/Perplexity/Google AI Overview, renders the full PDF. Exposed two ways:
-   - **Web (sales team):** `https://thrive-report-app.onrender.com/live-audit.html` (admin login) → `POST /api/live-audit` async job → public PDF link. ~2 min per company, max 2 concurrent.
+   - **Web (sales team):** `https://ai-report.thriveagency.com/live-audit.html` (onrender.com URL still works) (admin login) → `POST /api/live-audit` async job → public PDF link. ~2 min per company, max 2 concurrent.
    - **CLI (bulk):** `node tools/live-csv/run.js --input leads.csv --output out.xlsx`
 
 ## Recent work
