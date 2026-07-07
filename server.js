@@ -435,7 +435,7 @@ let liveJobsRunning = 0;
 const LIVE_JOBS_MAX = 2;
 
 app.post('/api/live-audit', (req, res) => {
-  const { company, website, city } = req.body || {};
+  const { company, website, city, industry } = req.body || {};
   if (!company || !city) {
     return res.status(400).json({ error: 'company and city are required (city like "Phoenix, AZ")' });
   }
@@ -449,9 +449,24 @@ app.post('/api/live-audit', (req, res) => {
   }
 
   const id = crypto.randomUUID();
-  const job = { id, status: 'running', log: [], result: null, error: null, createdAt: Date.now() };
+  const job = { id, status: 'running', progress: 2, stage: 'Starting…', log: [], result: null, error: null, createdAt: Date.now() };
   liveJobs.set(id, job);
   liveJobsRunning++;
+
+  // Real milestones parsed from pipeline log output — progress only moves when
+  // the corresponding stage has actually completed on the backend.
+  const MILESTONES = [
+    [/\[1\/4\] Classifying/,        4,  'Reading the website & classifying industry'],
+    [/\[classify\]/,               12,  'Industry identified'],
+    [/\[prompts\] generated/,      20,  'Buyer prompts generated'],
+    [/\[llm\] querying/,           24,  'Querying ChatGPT, Gemini, Perplexity & Google AI'],
+    [/\[llm\] done/,               60,  'AI responses received'],
+    [/\[extract\] extracting/,     62,  'Extracting brand mentions'],
+    [/responses parsed/,           78,  'Brands extracted'],
+    [/\[metrics\]/,                82,  'Computing competitor rankings'],
+    [/\[pdf\] queueing/,           86,  'Rendering branded PDF'],
+    [/\[pdf\] done/,               98,  'PDF ready'],
+  ];
 
   const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
   runLiveRows({
@@ -464,9 +479,21 @@ app.post('/api/live-audit', (req, res) => {
     baseUrl,
     generatePdfs: true,
     pdfConcurrency: 1,
-    log: m => { job.log.push(String(m)); if (job.log.length > 500) job.log.shift(); }
+    industryOverrides: industry && String(industry).trim()
+      ? { [String(company).trim().toLowerCase()]: String(industry).trim().toLowerCase() }
+      : {},
+    log: m => {
+      const line = String(m);
+      job.log.push(line);
+      if (job.log.length > 500) job.log.shift();
+      for (const [re, pct, label] of MILESTONES) {
+        if (re.test(line) && pct > job.progress) { job.progress = pct; job.stage = label; }
+      }
+    }
   }).then(out => {
     job.status = 'done';
+    job.progress = 100;
+    job.stage = 'Done';
     job.result = (out.enriched && out.enriched[0]) || null;
   }).catch(e => {
     console.error('[live-audit] Error:', e.message);
@@ -480,7 +507,7 @@ app.post('/api/live-audit', (req, res) => {
 app.get('/api/live-audit/:id', (req, res) => {
   const job = liveJobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'unknown job' });
-  res.json({ id: job.id, status: job.status, log: job.log.slice(-40), result: job.result, error: job.error });
+  res.json({ id: job.id, status: job.status, progress: job.progress, stage: job.stage, elapsedMs: Date.now() - job.createdAt, log: job.log.slice(-40), result: job.result, error: job.error });
 });
 
 const PORT = process.env.PORT || 3000;
