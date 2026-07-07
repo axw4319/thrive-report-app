@@ -436,8 +436,8 @@ const LIVE_JOBS_MAX = 2;
 
 app.post('/api/live-audit', (req, res) => {
   const { company, website, city, industry } = req.body || {};
-  if (!company || !city) {
-    return res.status(400).json({ error: 'company and city are required (city like "Phoenix, AZ")' });
+  if (!company) {
+    return res.status(400).json({ error: 'company is required' });
   }
   if (liveJobsRunning >= LIVE_JOBS_MAX) {
     return res.status(429).json({ error: 'Too many audits running right now — try again in a couple of minutes.' });

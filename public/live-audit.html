@@ -8,11 +8,11 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f5f7f2; color:#1a2e1a; min-height:100vh; }
-  header { background:linear-gradient(135deg,#1a2e1a,#2d5e2d); color:#fff; padding:20px 32px 26px; }
-  .topbar { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+  header { background:linear-gradient(135deg,#1a2e1a,#2d5e2d); color:#fff; padding:16px 32px; }
+  .topbar { display:flex; align-items:center; gap:14px; }
+  .topbar .app { font-size:14px; font-weight:600; color:#fff; }
   .topbar img { height:28px; display:block; }
   .topbar .sep { width:1px; height:22px; background:#ffffff33; }
-  .topbar .app { font-size:13px; color:#fffc; }
   .topbar nav { margin-left:auto; display:flex; gap:8px; }
   .topbar nav a { font-size:12px; font-weight:600; color:#fffc; text-decoration:none; padding:6px 14px; border-radius:6px; }
   .topbar nav a:hover { background:#ffffff22; color:#fff; }
@@ -57,15 +57,13 @@
   <div class="topbar">
     <img src="/logo-white.png" alt="Thrive">
     <div class="sep"></div>
-    <div class="app">AI Visibility Reports</div>
+    <div class="app">Live Audit</div>
     <nav>
       <a href="/live-audit.html" class="active">Live Audit</a>
       <a href="/">Peec Report</a>
       <a href="/csv.html">Bulk CSV</a>
     </nav>
   </div>
-  <h1>Live AI Visibility Audit</h1>
-  <p>Any company, any market — runs live prompts across ChatGPT, Gemini, Perplexity &amp; Google AI Overviews. No Peec project needed. Takes ~1–2 minutes.</p>
 </header>
 <main>
   <div class="card">
@@ -76,8 +74,8 @@
       <input id="website" placeholder="https://www.gogforce.com/phoenix-az/">
       <div class="hint">Optional but strongly recommended — used to classify the industry accurately.</div>
       <label>City / metro</label>
-      <input id="city" required placeholder="Phoenix, AZ">
-      <div class="hint">Use "City, ST" format. Prompts run at this market level.</div>
+      <input id="city" placeholder="Phoenix, AZ">
+      <div class="hint">Use "City, ST" format — prompts run at this market level. Leave blank for a national search.</div>
       <label>Industry (optional override)</label>
       <input id="industry" placeholder="Leave blank to auto-detect from the website">
       <div class="hint">e.g. "parking lot striping", "pressure washing". Set this if a previous run detected the wrong industry.</div>

@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#07070d;--s1:#111119;--s2:#18182a;--bd:#282840;--tx:#e0e0f0;--dim:#7878a0;--ac:#FF6600;--ac2:#7D963D;--grn:#00d4aa;--red:#ff5e6e;--orn:#ffc552}
+:root{--bg:#f5f7f2;--s1:#ffffff;--s2:#f2f6ec;--bd:#d5ddd0;--tx:#1a2e1a;--dim:#6a786a;--ac:#FF6600;--ac2:#7D963D;--grn:#2d7a2d;--red:#c0392b;--orn:#b8860b}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
 .hdr{padding:16px 32px;background:linear-gradient(135deg,#1a2e1a,#2d5e2d);display:flex;align-items:center;gap:14px}
@@ -25,7 +25,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
 
 .fg{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
 .fg label{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
-.fg input{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.fg input{background:#fff;border:1.5px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
 .fg input:focus{border-color:var(--ac)}
 .fg input::placeholder{color:var(--dim);opacity:.7}
 .dd{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--bd);border-radius:0 0 7px 7px;max-height:240px;overflow-y:auto;z-index:50;display:none}.dd.open{display:block}
@@ -84,7 +84,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-h
 <div class="hdr">
   <img class="hdr-logo" src="/logo-white.png" alt="Thrive">
   <div class="sep"></div>
-  <div class="sub">CSV Bulk Processing</div>
+  <div class="sub" style="color:#fff;font-weight:600;font-size:14px">Bulk CSV</div>
   <nav>
     <a href="/live-audit.html">Live Audit</a>
     <a href="/">Peec Report</a>

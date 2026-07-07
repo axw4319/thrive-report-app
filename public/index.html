@@ -7,23 +7,23 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#07070d;--s1:#111119;--s2:#18182a;--bd:#282840;--tx:#e0e0f0;--dim:#7878a0;--ac:#FF6600;--ac2:#7D963D;--grn:#00d4aa;--red:#ff5e6e;--orn:#ffc552}
+:root{--bg:#f5f7f2;--s1:#ffffff;--s2:#f2f6ec;--bd:#d5ddd0;--tx:#1a2e1a;--dim:#6a786a;--ac:#FF6600;--ac2:#7D963D;--grn:#2d7a2d;--red:#c0392b;--orn:#b8860b}
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
 .hdr{padding:16px 32px;border-bottom:1px solid var(--bd);background:var(--s1);display:flex;align-items:center;gap:14px}
 .hdr .logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--ac2)}.hdr .hdr-logo{height:28px;display:block;opacity:1}.hdr .sep{width:1px;height:22px;background:var(--bd)}.hdr .sub{font-size:13px;color:var(--dim)}
-.cfg{max-width:860px;margin:32px auto;padding:0 20px}.card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:28px 32px}.card h2{font-size:17px;font-weight:600;margin-bottom:20px}
+.cfg{max-width:860px;margin:32px auto;padding:0 20px}.card{background:var(--s1);border:none;border-radius:12px;box-shadow:0 2px 12px rgba(26,46,26,.08);padding:28px 32px}.card h2{font-size:17px;font-weight:600;margin-bottom:20px}
 .fg{display:flex;flex-direction:column;gap:5px;position:relative;margin-bottom:16px}
 .fg label{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
-.fg input{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.fg input{background:#fff;border:1.5px solid var(--bd);border-radius:7px;padding:10px 14px;color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
 .fg input:focus{border-color:var(--ac)}.fg input::placeholder{color:var(--dim);opacity:.7}
 .dd{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--bd);border-radius:0 0 7px 7px;max-height:240px;overflow-y:auto;z-index:50;display:none}.dd.open{display:block}
 .dd-item{padding:8px 14px;cursor:pointer;font-size:13px}.dd-item:hover{background:var(--ac);color:#fff}
 .btn{margin-top:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--ac),#FF8C33);border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
 .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 24px #FF660055}.btn:disabled{opacity:.45;cursor:not-allowed}
-.log{margin-top:14px;padding:12px;background:var(--bg);border-radius:7px;font-size:11px;font-family:'Space Mono',monospace;color:var(--dim);max-height:260px;overflow-y:auto;display:none;line-height:1.6}
+.log{margin-top:14px;padding:12px;background:#0f1a0f;border-radius:7px;font-size:11px;font-family:'Space Mono',monospace;color:#b8d49a;max-height:260px;overflow-y:auto;display:none;line-height:1.6}
 .log.on{display:block}.log .ok{color:var(--grn)}.log .er{color:var(--red)}.log .wr{color:var(--orn)}
 #rpt{display:none;max-width:860px;margin:32px auto;padding:0 20px 100px}#rpt.on{display:block}
-.page{background:#fff;color:#1a1a2e;overflow:hidden;margin-bottom:20px;box-shadow:0 4px 30px #0004;width:100%;border-radius:0}
+.page{background:#fff;color:#1a1a2e;overflow:hidden;margin-bottom:20px;box-shadow:0 2px 16px rgba(26,46,26,.12);width:100%;border-radius:0}
 .rh{background:linear-gradient(135deg,#1a2e1a,#2d5e2d);padding:20px 36px;color:#fff;position:relative}
 .rh .tl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#fff9;margin-bottom:4px}.rh h1{font-size:24px;font-weight:700;margin-bottom:6px}.rh .dr{font-size:12px;color:#fff7}
 .rh .rlogo{position:absolute;top:50%;right:36px;transform:translateY(-50%);height:28px;opacity:.85}
@@ -54,7 +54,7 @@
 ul.tk{list-style:none;padding:0}ul.tk li{padding:7px 0 7px 18px;position:relative;font-size:12px;color:#555;line-height:1.5;border-bottom:1px solid #f2f2f2}
 ul.tk li:last-child{border:none}ul.tk li::before{content:'—';position:absolute;left:0;color:#7D963D;font-weight:700}
 .meth{padding:14px 36px 20px;font-size:10px;color:#bbb;border-top:1px solid #eee}
-.dlb{position:sticky;bottom:0;background:var(--s1);border-top:1px solid var(--bd);padding:14px 32px;display:flex;justify-content:center;gap:14px;z-index:100}
+.dlb{position:sticky;bottom:0;background:#fff;box-shadow:0 -2px 12px rgba(26,46,26,.08);border-top:none;padding:14px 32px;display:flex;justify-content:center;gap:14px;z-index:100}
 .db{padding:10px 28px;border-radius:7px;border:1px solid var(--bd);background:var(--s2);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer}
 .db:hover{background:var(--ac);border-color:var(--ac)}.db.pr{background:linear-gradient(135deg,var(--ac),#FF8C33);border-color:transparent;color:#fff}
 .sp{display:inline-block;width:14px;height:14px;border:2px solid #fff4;border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
@@ -62,7 +62,7 @@ ul.tk li:last-child{border:none}ul.tk li::before{content:'—';position:absolute
 </style>
 </head>
 <body>
-<div class="hdr" style="background:linear-gradient(135deg,#1a2e1a,#2d5e2d);border-bottom:none"><img class="hdr-logo" src="/logo-white.png" alt="Thrive"><div class="sep" style="background:#ffffff33"></div><div class="sub" style="color:#fffc">AI Visibility Reports</div><nav style="margin-left:auto;display:flex;gap:8px"><a href="/live-audit.html" style="font-size:12px;font-weight:600;color:#fffc;text-decoration:none;padding:6px 14px;border-radius:6px">Live Audit</a><a href="/" style="font-size:12px;font-weight:600;color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;background:#ffffff22">Peec Report</a><a href="/csv.html" style="font-size:12px;font-weight:600;color:#fffc;text-decoration:none;padding:6px 14px;border-radius:6px">Bulk CSV</a></nav></div>
+<div class="hdr" style="background:linear-gradient(135deg,#1a2e1a,#2d5e2d);border-bottom:none"><img class="hdr-logo" src="/logo-white.png" alt="Thrive"><div class="sep" style="background:#ffffff33"></div><div class="sub" style="color:#fff;font-weight:600;font-size:14px">Peec Report</div><nav style="margin-left:auto;display:flex;gap:8px"><a href="/live-audit.html" style="font-size:12px;font-weight:600;color:#fffc;text-decoration:none;padding:6px 14px;border-radius:6px">Live Audit</a><a href="/" style="font-size:12px;font-weight:600;color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;background:#ffffff22">Peec Report</a><a href="/csv.html" style="font-size:12px;font-weight:600;color:#fffc;text-decoration:none;padding:6px 14px;border-radius:6px">Bulk CSV</a></nav></div>
 <div class="cfg" id="cfgPanel">
   <div class="card">
     <h2>⚡ Generate Report</h2>
