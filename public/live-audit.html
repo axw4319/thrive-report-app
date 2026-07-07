@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Live AI Visibility Audit — Thrive Agency</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f5f7f2; color:#1a2e1a; min-height:100vh; }
+  header { background:linear-gradient(135deg,#1a2e1a,#2d5e2d); color:#fff; padding:28px 32px; }
+  header h1 { font-size:22px; font-weight:700; letter-spacing:.3px; }
+  header p { margin-top:6px; font-size:14px; opacity:.85; }
+  main { max-width:720px; margin:32px auto; padding:0 20px; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(26,46,26,.08); padding:28px; margin-bottom:20px; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 6px; color:#3a4a3a; }
+  input { width:100%; padding:11px 14px; border:1.5px solid #d5ddd0; border-radius:8px; font-size:15px; }
+  input:focus { outline:none; border-color:#7D963D; }
+  .hint { font-size:12px; color:#8a978a; margin-top:4px; }
+  button { margin-top:20px; width:100%; padding:13px; background:#FF6600; color:#fff; border:none; border-radius:8px; font-size:16px; font-weight:700; cursor:pointer; }
+  button:hover { background:#e65c00; }
+  button:disabled { background:#c9cfc4; cursor:default; }
+  #status { display:none; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2.5px solid #7D963D; border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #log { background:#0f1a0f; color:#b8d49a; font-family:ui-monospace,Menlo,monospace; font-size:12px; padding:14px; border-radius:8px; max-height:260px; overflow-y:auto; white-space:pre-wrap; margin-top:14px; }
+  #result { display:none; }
+  .stat-row { display:flex; gap:12px; margin:16px 0; flex-wrap:wrap; }
+  .stat { flex:1; min-width:110px; background:#f2f6ec; border-radius:8px; padding:14px; text-align:center; }
+  .stat b { display:block; font-size:22px; color:#7D963D; }
+  .stat span { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6a786a; }
+  a.pdf-link { display:block; margin-top:8px; padding:13px; background:#7D963D; color:#fff; text-align:center; border-radius:8px; font-weight:700; text-decoration:none; }
+  a.pdf-link:hover { background:#6d8434; }
+  .copy-row { display:flex; gap:8px; margin-top:10px; }
+  .copy-row input { flex:1; font-size:13px; color:#4a584a; background:#f7f9f4; }
+  .copy-row button { margin:0; width:auto; padding:0 18px; font-size:13px; background:#2d5e2d; }
+  .err { color:#c0392b; font-weight:600; margin-top:12px; display:none; }
+  .note { font-size:12.5px; color:#7a887a; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Live AI Visibility Audit</h1>
+  <p>Any company, any market — runs live prompts across ChatGPT, Gemini, Perplexity &amp; Google AI Overviews. No Peec project needed. Takes ~2 minutes.</p>
+</header>
+<main>
+  <div class="card">
+    <form id="f">
+      <label>Company name</label>
+      <input id="company" required placeholder="GFORCE of Phoenix">
+      <label>Website</label>
+      <input id="website" placeholder="https://www.gogforce.com/phoenix-az/">
+      <div class="hint">Optional but strongly recommended — used to classify the industry accurately.</div>
+      <label>City / metro</label>
+      <input id="city" required placeholder="Phoenix, AZ">
+      <div class="hint">Use "City, ST" format. Prompts run at this market level.</div>
+      <button id="go" type="submit">Run Live Audit</button>
+      <div class="err" id="err"></div>
+    </form>
+  </div>
+
+  <div class="card" id="status">
+    <div><span class="spinner"></span><b id="phase">Starting…</b></div>
+    <div id="log"></div>
+  </div>
+
+  <div class="card" id="result">
+    <h2 style="font-size:18px;">Audit complete — <span id="r-company"></span></h2>
+    <div class="stat-row">
+      <div class="stat"><b id="r-vis">–</b><span>AI Visibility</span></div>
+      <div class="stat"><b id="r-rank">–</b><span>AI Rank</span></div>
+      <div class="stat"><b id="r-share">–</b><span>Market Share</span></div>
+      <div class="stat"><b id="r-mentions">–</b><span>Mentions</span></div>
+    </div>
+    <a class="pdf-link" id="r-pdf" target="_blank" rel="noopener">Open Branded PDF Report</a>
+    <div class="copy-row">
+      <input id="r-url" readonly>
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('r-url').value);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)">Copy link</button>
+    </div>
+    <p class="note" style="margin-top:12px;">The PDF link is public (no login) — safe to send to the prospect or drop in a Loom description.</p>
+  </div>
+
+  <div class="card">
+    <p class="note"><b>How it works:</b> the tool reads the company's website to detect its industry, generates 5 buyer-style prompts for that industry + market ("best X in City"), runs each prompt live across 4 AI platforms, extracts every brand mentioned, and renders the Thrive-branded PDF with competitor rankings and the 8-move AI Visibility Action Plan.</p>
+  </div>
+</main>
+<script>
+const f = document.getElementById('f'), go = document.getElementById('go'), err = document.getElementById('err');
+const statusCard = document.getElementById('status'), logEl = document.getElementById('log'), phase = document.getElementById('phase');
+const resultCard = document.getElementById('result');
+
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  err.style.display = 'none'; resultCard.style.display = 'none';
+  go.disabled = true; go.textContent = 'Running…';
+  statusCard.style.display = 'block'; logEl.textContent = ''; phase.textContent = 'Starting…';
+  try {
+    const resp = await fetch('/api/live-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: document.getElementById('company').value,
+        website: document.getElementById('website').value,
+        city: document.getElementById('city').value
+      })
+    });
+    if (resp.redirected) { location.href = '/login?next=/live-audit.html'; return; }
+    const j = await resp.json();
+    if (!resp.ok) throw new Error(j.error || 'Request failed');
+    poll(j.id);
+  } catch (ex) { fail(ex.message); }
+});
+
+async function poll(id) {
+  try {
+    const r = await fetch('/api/live-audit/' + id);
+    const j = await r.json();
+    if (j.log && j.log.length) {
+      logEl.textContent = j.log.join('\n');
+      logEl.scrollTop = logEl.scrollHeight;
+      const last = j.log.filter(l => l.match(/^\[\d\/4\]/)).pop();
+      if (last) phase.textContent = last.trim();
+    }
+    if (j.status === 'running') return setTimeout(() => poll(id), 2500);
+    if (j.status === 'error') return fail(j.error || 'Audit failed');
+    done(j.result);
+  } catch (ex) { setTimeout(() => poll(id), 4000); }
+}
+
+function done(res) {
+  go.disabled = false; go.textContent = 'Run Live Audit';
+  statusCard.style.display = 'none';
+  if (!res) return fail('No result returned');
+  document.getElementById('r-company').textContent = res['Company Name'];
+  document.getElementById('r-vis').textContent = res['AI Visibility'] || '–';
+  document.getElementById('r-rank').textContent = res['AI Rank'] || '–';
+  document.getElementById('r-share').textContent = res['Market Share'] || '–';
+  document.getElementById('r-mentions').textContent = res['Mentions'] ?? '–';
+  const url = res['PDF Report'];
+  document.getElementById('r-pdf').href = url;
+  document.getElementById('r-url').value = url;
+  resultCard.style.display = 'block';
+}
+
+function fail(msg) {
+  go.disabled = false; go.textContent = 'Run Live Audit';
+  statusCard.style.display = 'none';
+  err.textContent = msg; err.style.display = 'block';
+}
+</script>
+</body>
+</html>

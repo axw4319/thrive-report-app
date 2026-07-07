@@ -426,6 +426,63 @@ app.post('/api/admin/upload-pdfs', pdfUpload.array('pdfs', 20), (req, res) => {
   res.json({ uploaded: ok, failed: results.length - ok, results });
 });
 
+// ── Live AI audit — any company, no Peec project needed ────────────────────
+// Classifies industry from the website, generates prompts, runs them live
+// across ChatGPT/Gemini/Perplexity/Google AI Overview, renders branded PDF.
+const { processRows: runLiveRows } = require('./lib/live-engine/csv-pipeline');
+const liveJobs = new Map(); // id -> { status, log, result, error, createdAt }
+let liveJobsRunning = 0;
+const LIVE_JOBS_MAX = 2;
+
+app.post('/api/live-audit', (req, res) => {
+  const { company, website, city } = req.body || {};
+  if (!company || !city) {
+    return res.status(400).json({ error: 'company and city are required (city like "Phoenix, AZ")' });
+  }
+  if (liveJobsRunning >= LIVE_JOBS_MAX) {
+    return res.status(429).json({ error: 'Too many audits running right now — try again in a couple of minutes.' });
+  }
+
+  // Expire jobs older than 24h
+  for (const [k, j] of liveJobs) {
+    if (Date.now() - j.createdAt > 24 * 60 * 60 * 1000) liveJobs.delete(k);
+  }
+
+  const id = crypto.randomUUID();
+  const job = { id, status: 'running', log: [], result: null, error: null, createdAt: Date.now() };
+  liveJobs.set(id, job);
+  liveJobsRunning++;
+
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  runLiveRows({
+    rows: [{
+      company: String(company).trim(),
+      website: String(website || '').trim(),
+      email: '', phone: '',
+      city: String(city).trim()
+    }],
+    baseUrl,
+    generatePdfs: true,
+    pdfConcurrency: 1,
+    log: m => { job.log.push(String(m)); if (job.log.length > 500) job.log.shift(); }
+  }).then(out => {
+    job.status = 'done';
+    job.result = (out.enriched && out.enriched[0]) || null;
+  }).catch(e => {
+    console.error('[live-audit] Error:', e.message);
+    job.status = 'error';
+    job.error = e.message;
+  }).finally(() => { liveJobsRunning--; });
+
+  res.json({ id, statusUrl: `/api/live-audit/${id}` });
+});
+
+app.get('/api/live-audit/:id', (req, res) => {
+  const job = liveJobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'unknown job' });
+  res.json({ id: job.id, status: job.status, log: job.log.slice(-40), result: job.result, error: job.error });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  ✅  http://localhost:${PORT}\n`);
